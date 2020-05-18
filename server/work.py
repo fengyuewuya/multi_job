@@ -7,13 +7,29 @@ import zipfile
 import io
 import os
 from multiprocess import Process, Queue
+import logging, logging.handlers, logging.config
+def main():
+    all_config = json.load(open("./config.json"))
+    host = all_config["host"]
+    port = all_config["port"]
+    debug = all_config["debug"]
+    app.run(host=host, port=port, debug=debug)
+
+# 0. 读取相关配置文件
+log_config = json.loads(open("log_config.json").read())
+all_config = json.load(open("./config.json"))
+
+# 0.1 读取logger 配置
+logging.config.dictConfig(log_config)
+
+# 0.2 初始化flask 设置数据库相关信息
 app = Flask(__name__)
-# 设置数据库相关信息
-config_all = json.load(open("./config.json"))
-app.config['SQLALCHEMY_DATABASE_URI'] = config_all['db']
+# 0.2.1 设置数据库相关参数
+app.config['SQLALCHEMY_DATABASE_URI'] = all_config['db']
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
-# 初始化Jobs参数
+
+# 0.2.2 初始化Jobs参数
 class Jobs(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     job_type = db.Column(db.Text)
@@ -47,14 +63,22 @@ class Jobs(db.Model):
                 dic_0[k] = v.strftime("%Y-%m-%d %H:%M:%S")
         return dic_0
 
-def operate_return_data(data):
+# 0.2.3 进行表格创建
+db.create_all()
+
+# 0.3 设置flask
+# 0.3.1 运行状态等信息
+host = all_config["host"]
+port = all_config["port"]
+debug = all_config["debug"]
+# 0.3.2 设置flask函数
+def operate_return_data(data, port=port, host=host):
     import os
     import sys
     import importlib
     import requests
     import time
     import json
-    time.sleep(10)
     file_path = 'jobs/' + data['job_type'] + '/'
     os.chdir(file_path)
     sys.path.append('./')
@@ -65,20 +89,16 @@ def operate_return_data(data):
         result['result'] = str(result['result']) + '\n' + str(tmp_result)
     except Exception as e:
         result['result'] = str(result['result']) + '\n' + str(e)
-    url = 'http://localhost:5000/' + 'update_job'
+        logging.exception("error in open return data , %s" % result['job_id'])
+    url = 'http://localhost:%s/' % port + 'update_job'
     headers = {'Content-Type': 'application/json'}
     result['return_data'] = ''
-    result['status'] = 3
+    result['status'] = -2
     res = requests.post(url=url, headers=headers, data=json.dumps(result))
-    print(res.text)
 
-# 1. 进行一些前置操作
-# create_tables(db)
-db.create_all()
 @app.route('/')
 def hello_world():
     return 'Hello, World!'
-
 
 # 获取所有的jobs
 @app.route('/get_all_job')
@@ -86,10 +106,7 @@ def get_all_job():
     data = []
     for line in Jobs.query.all():
         data.append(line.to_json())
-    print(data
-          )
     result = {'data': data}
-    #return json.dumps(result, indent=4)
     return jsonify(code=200, result=result)
 
 # 插入一条jobs
@@ -99,12 +116,14 @@ def insert_job():
     job_type = data.get('job_type', '')
     if len(str(job_type)) <= 1:
         return jsonify(code=300, status=0, message='failed', data='job_type not found')
+
     input_data = data.get('input_data', '')
     params = data.get('params', '')
     limit_count = data.get('limit_count', 1)
     new_job = Jobs(job_type, input_data, params, limit_count, 0)
     db.session.add(new_job)
     db.session.commit()
+    logging.info("insert a job of %s" % job_type)
     return jsonify(code=200, status=1, message='ok', data=new_job.to_json())
 
 # 下载数据
@@ -126,7 +145,7 @@ def get_data():
                      mimetype='application/zip')
 
 # 更新任务状态，为运行成功或者失败
-# 任务状态 0 等待分发， 1 运行中， 2 运行成功， -1 运行失败
+# 任务状态 0 等待分发， 1 运行中， 2 运行成功， -1 运行失败, -2 回调函数计算失败
 @app.route('/update_job',  methods=['POST'])
 def update_job():
     data = json.loads(request.data)
@@ -148,9 +167,10 @@ def update_job():
             status = 3
     Jobs.query.filter_by(id=job_id).update({'status':status, 'return_count':return_count, 'result':result})
     db.session.commit()
+    logging.info("update job status of %s and %s" % (job_id, job_type))
     return jsonify(code=200, status=status, message='ok', data={})
 
-# 获取所有的jobs
+# machine 获取特定job
 @app.route('/get_job')
 def get_job():
     job_type = request.args.get('job_type')
@@ -167,6 +187,19 @@ def get_job():
     db.session.commit()
     return jsonify(code=200, status=1, message='ok', data=data)
 
-# 如果当前这个文件是作为入口程序运行，那么久执行app.run()
+# 随便获取一个job
+@app.route('/get_job_info')
+def get_job_info():
+    job_type = request.args.get('job_type')
+    query_0 = Jobs.query
+    # 如果存在特定的job_type，就筛选特定的job_type
+    if job_type:
+        query_0 = query_0.filter_by(job_type=job_type)
+    data = query_0.first()
+    if data is None:
+        return jsonify(code=302, status=0, message='No Job', data='')
+    data = data.to_json()
+    return jsonify(code=200, status=1, message='ok', data=data)
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5005, debug=True)
+    main()

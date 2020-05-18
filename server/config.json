@@ -1,1 +1,6 @@
-{"db":"sqlite:///./data.db"}
+{
+    "db":"sqlite:///./data.db",
+    "host":"0.0.0.0",
+    "port":"5006",
+    "debug":true
+}
