@@ -16,7 +16,7 @@ def main():
     app.run(host=host, port=port, debug=debug)
 
 # 0. 读取相关配置文件
-log_config = json.loads(open("log_config.json").read())
+log_config = json.load(open("./log_config.json"))
 all_config = json.load(open("./config.json"))
 
 # 0.1 读取logger 配置

@@ -11,18 +11,9 @@ import json
 import requests
 import logging
 import psutil
-
-'''
-# 1. 读取基础的config信息
-config_info = json.loads(open('data/config').read())
-base_url = config_info['base_url']
-machine_id = config_info['machine_id']
-name = config_info['name']
-limit_process = config_info['limit_process']
-'''
-
-queue_0 = Queue(999)
+import logging, logging.handlers, logging.config
 def append_process(data, queue_0):
+    # 开启多进程任务
     import os
     import sys
     import importlib
@@ -45,38 +36,19 @@ def append_process(data, queue_0):
     result['job_type'] = data['job_type']
     queue_0.put(result)
 
-# 获取日志配置
-def get_logger():
-    # .0 初始化
-    logging.basicConfig()
-    logger = logging.getLogger(__name__)
-    logger.setLevel(level = logging.DEBUG)
-    logger.propagate = False
-    # .1 定义日志输出格式
-    fmt_str = '%(asctime)s[level-%(levelname)s][%(name)s]:%(message)s'
-    formatter = logging.Formatter(fmt_str)
-    # .2 设置文件日志输出
-    # .2.1 创建TimedRotatingFileHandler处理对象,间隔1(d)创建新的名称为myLog%Y%m%d.log的文件，并一直占用myLog文件。
-    fh = logging.handlers.TimedRotatingFileHandler('log/work', when='D', interval=1, backupCount=7)
-    # .2.2 设置日志文件后缀，以当前时间作为日志文件后缀名。
-    fh.suffix = "%Y%m%d.log"
-    # .2.3 设置日志输出级别和格式
-    fh.setLevel(logging.INFO)
-    fh.setFormatter(formatter)
-    # .3 设置控制台输出
-    ch = logging.StreamHandler()
-    # .3.1 设定输出级别和格式
-    ch.setLevel(logging.ERROR)
-    ch.setFormatter(formatter)
-    # 添加到日志处理对象集合
-    logger.addHandler(fh)
-    logger.addHandler(ch)
-    return logger
+# 0. 读取logger配置文件, 并配置logger
+log_config = json.load(open("./log_config.json"))
+logging.config.dictConfig(log_config)
 
+# 1. 配置 controller相关配置
+queue_0 = Queue(9999)
 class controller(object):
-    def __init__(self, base_url='http://localhost:5005/', limit_process=70):
-        self.base_url = base_url
-        self.limit_process = limit_process
+    def __init__(self, config = "./config.json"):
+        logging.info("开始初始化")
+        all_config = json.load(open(config))
+        self.base_url = all_config['host'].strip('/') + '/'
+        self.limit_process = all_config['limit_process']
+        # 设置相关的运行参数
         self.count_process = 0
         self.count_done_job = 0
         self.count_all_job = 0
@@ -85,7 +57,6 @@ class controller(object):
     def get_job(self):
         begin_time = time.time()
         data_all = requests.get(self.base_url + 'get_job').json()
-        print('sep_time', time.time() - begin_time)
         data = data_all['data']
         if data_all['status'] == 1:
             if self.check_job_file(job_type=data['job_type']) == 0:
@@ -100,6 +71,7 @@ class controller(object):
         if os.path.exists(file_name):
             return 1
         return 0
+
     # 获取job_file
     def get_job_file(self, job_type):
         file_name = 'jobs/' + job_type + '.zip'
@@ -176,30 +148,23 @@ class controller(object):
         url = self.base_url + 'update_job'
         headers = {'Content-Type': 'application/json'}
         res = requests.post(url=url, headers=headers, data=json.dumps(data))
-        print(res.text)
 
     def work(self):
         begin_time = time.time()
         while True:
-            time.sleep(1)
-            print(time.time() - begin_time)
+            time.sleep(1.5)
             begin_time = time.time()
-            print(self.count_process, self.count_done_job, self.count_all_job, self.limit_process)
             begin_time = time.time()
             if self.count_process < self.limit_process:
                 self.get_job()
-            print('1 sep_time', time.time() - begin_time)
             begin_time = time.time()
             self.get_result()
-            print('2 sep_time', time.time() - begin_time)
-
-
 
     # 分配任务 多进程执行
     def assign_job(self, data):
         job_type = data['job_type']
         if str(job_type) == '0':
-            print(' 进行爬虫任务')
+            logging.info("开始爬虫任务")
             p = Process(target=crawl_data.get_stock_data_from_sina, args=(data,))
             p.start()
         if str(job_type) == 'qq':
@@ -208,7 +173,7 @@ class controller(object):
 
 if __name__ == '__main__':
     tmp = controller()
-    tmp.work()
+    #tmp.work()
     '''
     while True:
         time.sleep(5)
