@@ -1,4 +1,4 @@
-*/log/*
-*/jobs/*
+./*/log/*
+./*/jobs/*
 server/data.db
-*/tmp
+./*/tmp
