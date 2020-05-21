@@ -58,10 +58,12 @@ class controller(object):
         begin_time = time.time()
         data_all = requests.get(self.base_url + 'get_job').json()
         data = data_all['data']
+        logging.info("获取了一个任务 %s" % data['job_type'])
         if data_all['status'] == 1:
             if self.check_job_file(job_type=data['job_type']) == 0:
                 self.get_job_file(job_type=data['job_type'])
                 self.unzip_file(job_type=data['job_type'])
+            logging.info("开启了 %s 的任务" % data['job_type'])
             self.run(data)
         return data
 
@@ -74,6 +76,7 @@ class controller(object):
 
     # 获取job_file
     def get_job_file(self, job_type):
+        logging.info("获取的程序文件 %s" % job_type)
         file_name = 'jobs/' + job_type + '.zip'
         data_url = self.base_url + 'get_data?job_type=' + job_type
         res = requests.get(data_url)
@@ -89,7 +92,7 @@ class controller(object):
             for tmp_file in fz.namelist():
                 fz.extract(tmp_file, file_path)
         else:
-            print('This is not zip')
+            logging.error("This is not zip")
 
     # 2. 注册服务器
     def append_machine(self):
@@ -156,6 +159,8 @@ class controller(object):
             begin_time = time.time()
             begin_time = time.time()
             if self.count_process < self.limit_process:
+                logging.info("当前的总体任务 %s，已经完成的任务 %s，正在跑的任务 %s" % (self.count_all_job,
+                    self.count_done_job, self.count_process))
                 self.get_job()
             begin_time = time.time()
             self.get_result()
