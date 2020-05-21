@@ -46,7 +46,7 @@ class controller(object):
     def __init__(self, config = "./config.json"):
         logging.info("开始初始化")
         all_config = json.load(open(config))
-        self.base_url = all_config['host'].strip('/') + '/'
+        self.base_url = all_config['host'].strip('/') + ":%s" % all_config['port'] + '/'
         self.limit_process = all_config['limit_process']
         # 设置相关的运行参数
         self.count_process = 0
@@ -58,12 +58,12 @@ class controller(object):
         begin_time = time.time()
         data_all = requests.get(self.base_url + 'get_job').json()
         data = data_all['data']
-        logging.info("获取了一个任务 %s" % data['job_type'])
         if data_all['status'] == 1:
+            logging.info("开启了 %s 的任务" % data['job_type'])
             if self.check_job_file(job_type=data['job_type']) == 0:
                 self.get_job_file(job_type=data['job_type'])
                 self.unzip_file(job_type=data['job_type'])
-            logging.info("开启了 %s 的任务" % data['job_type'])
+                logging.info("获取了一个任务 %s" % data['job_type'])
             self.run(data)
         return data
 
@@ -155,6 +155,10 @@ class controller(object):
     def work(self):
         begin_time = time.time()
         while True:
+            if self.exit_work():
+                exit()
+            if self.pause_work():
+                continue
             time.sleep(1.5)
             begin_time = time.time()
             begin_time = time.time()
@@ -176,9 +180,27 @@ class controller(object):
             p = Process(target=crawl_data.get_data_from_qq, args=(data,))
             p.start()
 
+    def exit_work(self):
+        # 退出work
+        if os.path.exists("End"):
+            logging.info("退出了work")
+            os.remove('./End')
+            return True
+        else:
+            return False
+
+    def pause_work(self):
+        # 暂停work
+        if os.path.exists("Pause"):
+            logging.info("暂停 work 30秒")
+            time.sleep(30)
+            return True
+        else:
+            return False
+
 if __name__ == '__main__':
     tmp = controller()
-    #tmp.work()
+    tmp.work()
     '''
     while True:
         time.sleep(5)

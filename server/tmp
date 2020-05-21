@@ -1,7 +1,8 @@
-2020-05-21 18:04:53,986 - werkzeug - INFO -  * Running on http://0.0.0.0:5006/ (Press CTRL+C to quit)
-2020-05-21 18:04:53,987 - werkzeug - INFO -  * Restarting with stat
-2020-05-21 18:04:54,338 - werkzeug - WARNING -  * Debugger is active!
-2020-05-21 18:04:54,343 - werkzeug - INFO -  * Debugger PIN: 207-770-658
+ * Serving Flask app "work" (lazy loading)
+ * Environment: production
+   WARNING: Do not use the development server in a production environment.
+   Use a production WSGI server instead.
+ * Debug mode: on
 2020-05-21 18:05:16,124 - werkzeug - INFO -  * Running on http://0.0.0.0:5006/ (Press CTRL+C to quit)
 2020-05-21 18:05:16,125 - werkzeug - INFO -  * Restarting with stat
 2020-05-21 18:05:16,471 - werkzeug - WARNING -  * Debugger is active!
