@@ -84,7 +84,7 @@ def operate_return_data(data, port=port, host=host):
     sys.path.append('./')
     result = data
     try:
-        main = importlib.import_module('main')  # 绝对导入
+        main = importlib.import_module('return_main')  # 绝对导入
         tmp_result = main.operate_return_data(data)
         result['result'] = str(result['result']) + '\n' + str(tmp_result)
     except Exception as e:
@@ -136,7 +136,7 @@ def get_data():
     job_path = os.path.join(base_dir, 'jobs', job_type)
     with zipfile.ZipFile(memory_file, "w", zipfile.ZIP_DEFLATED) as zf:
         for tmp_file in os.listdir(job_path):
-            if tmp_file != '__pycache__':
+            if tmp_file != '__pycache__' and "return_main" not in tmp_file:
                 with open(os.path.join(job_path, tmp_file), 'rb') as fp:
                     zf.writestr(tmp_file, fp.read())
     memory_file.seek(0)
