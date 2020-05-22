@@ -85,7 +85,7 @@ def operate_return_data(data, port=port, host=host):
     result = data
     try:
         main = importlib.import_module('return_main')  # 绝对导入
-        tmp_result = main.operate_return_data(data)
+        tmp_result = main.work(data)
         result['result'] = str(result['result']) + '\n' + str(tmp_result)
     except Exception as e:
         result['result'] = str(result['result']) + '\n' + str(e)
