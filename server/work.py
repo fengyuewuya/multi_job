@@ -87,13 +87,15 @@ def operate_return_data(data, port=port, host=host):
         main = importlib.import_module('return_main')  # 绝对导入
         tmp_result = main.work(data)
         result['result'] = str(result['result']) + '\n' + str(tmp_result)
+        result['status'] = 3
+        logging.info("operate return data of %s, %s" % (data['job_type'], result['result']))
     except Exception as e:
         result['result'] = str(result['result']) + '\n' + str(e)
         logging.exception("error in open return data , %s" % result['job_id'])
+        result['status'] = -2
     url = 'http://localhost:%s/' % port + 'update_job'
     headers = {'Content-Type': 'application/json'}
     result['return_data'] = ''
-    result['status'] = -2
     res = requests.post(url=url, headers=headers, data=json.dumps(result))
 
 @app.route('/')
