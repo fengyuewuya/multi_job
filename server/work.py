@@ -68,11 +68,12 @@ db.create_all()
 
 # 0.3 设置flask
 # 0.3.1 运行状态等信息
+global host, port
 host = all_config["host"]
 port = all_config["port"]
 debug = all_config["debug"]
 # 0.3.2 设置flask函数
-def operate_return_data(data, port=port, host=host):
+def operate_return_data(data):
     import os
     import sys
     import importlib
