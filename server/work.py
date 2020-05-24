@@ -27,6 +27,8 @@ app = Flask(__name__)
 # 0.2.1 设置数据库相关参数
 app.config['SQLALCHEMY_DATABASE_URI'] = all_config['db']
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# 让返回的json结果显示中文
+app.config['JSON_AS_ASCII'] = False
 db = SQLAlchemy(app)
 
 # 0.2.2 初始化Jobs参数
@@ -62,6 +64,13 @@ class Jobs(db.Model):
             if isinstance(v, datetime.datetime):
                 dic_0[k] = v.strftime("%Y-%m-%d %H:%M:%S")
         return dic_0
+
+def convert_rowproxy_to_dict(data):
+    # 将fetchall 返回的list 转换为 json list
+    return_data = []
+    for line in data:
+        return_data.append(dict((zip(line.keys(), line))))
+    return return_data
 
 # 0.2.3 进行表格创建
 db.create_all()
@@ -204,5 +213,21 @@ def get_job_info():
     data = data.to_json()
     return jsonify(code=200, status=1, message='ok', data=data)
 
+
+
+# 获取job的完成统计情况
+@app.route('/get_job_summary')
+def get_job_summary():
+    res = db.session.execute("select job_type, status, count(1) as job_count from jobs group by job_type, status")
+    data = convert_rowproxy_to_dict(res.fetchall())
+    return jsonify(code=200, data=data)
+
+# 获取job的完成详情
+@app.route('/get_job_details')
+def get_job_details():
+    #res = db.session.execute("select job_type, status, count(1) as job_count from jobs group by job_type, status")
+    res = db.session.execute("select  *,strftime('%s', update_time) - strftime('%s', create_time) as spend_time from jobs where status > 1")
+    data = convert_rowproxy_to_dict(res.fetchall())
+    return jsonify(code=200, data=data)
 if __name__ == '__main__':
     main()
