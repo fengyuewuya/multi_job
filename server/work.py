@@ -1,11 +1,12 @@
 # coding=utf-8
-from flask import Flask, request, jsonify, json, send_file
+from flask import Flask, request, jsonify, json, send_file, g
 from flask_sqlalchemy import SQLAlchemy
 import datetime
 import json
 import zipfile
 import io
 import os
+import time
 from multiprocess import Process, Queue
 import logging, logging.handlers, logging.config
 def main():
@@ -15,6 +16,8 @@ def main():
     debug = all_config["debug"]
     app.run(host=host, port=port, debug=debug)
 
+base_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(base_dir)
 # 0. 读取相关配置文件
 log_config = json.load(open("./log_config.json"))
 all_config = json.load(open("./config.json"))
@@ -24,6 +27,7 @@ logging.config.dictConfig(log_config)
 
 # 0.2 初始化flask 设置数据库相关信息
 app = Flask(__name__)
+
 # 0.2.1 设置数据库相关参数
 app.config['SQLALCHEMY_DATABASE_URI'] = all_config['db']
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -138,7 +142,32 @@ def insert_job():
     logging.info("insert a job of %s" % job_type)
     return jsonify(code=200, status=1, message='ok', data=new_job.to_json())
 
-# 下载数据
+# 检测任务文件的状态 如果状态比较旧就返回 1
+@app.route('/check_job_file_status')
+def check_job_file_status():
+    time_local = request.args.get("local_time", -1)
+    time_local = int(time_local)
+    job_type = request.args.get("job_type", -1)
+    version_file = os.path.join('./', 'jobs', job_type, '.VERSION')
+    st_mtime_0 = os.stat(version_file).st_mtime
+    # 说明 job 文件已经更新
+    if st_mtime_0 > int(time_local):
+        return jsonify(code=200, message='ok', status=1)
+    else:
+        return jsonify(code=200, message='ok', status=-1)
+
+# 检测任务文件的状态 如果状态比较旧就返回 1
+@app.route('/update_job_file_status')
+def update_job_file_status():
+    job_type = request.args.get("job_type", -1)
+    job_path = os.path.join('./', 'jobs', job_type)
+    version_file = os.path.join(job_path, ".VERSION")
+    tmp_time = str(time.time())
+    w = open(version_file, 'w')
+    w.write(tmp_time)
+    w.close()
+    return jsonify(code=200, time_now=tmp_time, message='ok', data={})
+
 @app.route('/get_data')
 def get_data():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -212,8 +241,6 @@ def get_job_info():
         return jsonify(code=302, status=0, message='No Job', data='')
     data = data.to_json()
     return jsonify(code=200, status=1, message='ok', data=data)
-
-
 
 # 获取job的完成统计情况
 @app.route('/get_job_summary')
