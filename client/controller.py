@@ -45,10 +45,15 @@ queue_0 = Queue(9999)
 class controller(object):
     def __init__(self, config = "./config.json"):
         logging.info("开始初始化")
-        all_config = json.load(open(config))
+        all_config = json.loads(open(config).read())
+        self.all_config = all_config
+        print(all_config)
+        self.machine_id = all_config['machine_id']
+        self.name = all_config['name']
+        self.tag = all_config['tag']
         self.base_url = all_config['host'].strip('/') + ":%s" % all_config['port'] + '/'
-        self.limit_process = all_config['limit_process']
         # 设置相关的运行参数
+        self.limit_process = all_config['limit_process']
         self.count_process = 0
         self.count_done_job = 0
         self.count_all_job = 0
@@ -96,35 +101,34 @@ class controller(object):
 
     # 2. 注册服务器
     def append_machine(self):
-        # 注册服务器，并上传服务器的各种信息
+        # 注册服务器，并上传服务器的各种信息, 获取uuid
         url = self.base_url + 'append_machine'
-        tmp_data = {'machine_id': self.machine_id, "name": self.name, "limit_process": self.limit_process}
-        res = requests.post(url=url, data=tmp_data)
-        return res.text
+        headers = {'Content-Type': 'application/json'}
+        tmp_data = {'machine_id': self.machine_id, "tag": self.tag, "limit_process": self.limit_process, "name": self.name, "count_process": self.count_process, "status":1}
+        machine_info = self.get_machine_info()
+        for k, v in machine_info.items():
+            tmp_data[k] = v
+        res = requests.post(url=url, data=json.dumps(tmp_data), headers=headers)
+        data = res.json()['data']
+        if self.machine_id == '':
+            self.machine_id = data['machine_id']
+        self.all_config['machine_id'] = self.machine_id
+        self.update_config()
+        return 1
 
     # 3. 获取服务器的运行状态
-    def get_machine_config(self):
-        # 上传服务器信息
-        url = self.base_url + 'get_machine_config'
-        # cpu 信息
-        cpu_data = "%s/%s" % (psutil.cpu_count(), psutil.cpu_count(logical=False))
-        # 内存信息
-        mem = psutil.virtual_memory()
-        mem_data = "%s/%s" % (round(mem.free / 1024 / 1024 / 1024, 2), round(mem.total / 1024 / 1024 / 1024, 2))
-        # 硬盘信息
-        psutil.disk_partitions()
-        psutil.disk_usage('/')
-        disk_data = psutil.disk_usage(os.path.dirname(os.path.abspath(__file__)))
-        disk_data = "%s/%s" % (
-        round(disk_data.used / 1024 / 1024 / 1024, 2), round(disk_data.total / 1024 / 1024 / 1024, 2))
-        # 开机时间
-        boot_time = psutil.boot_time()
-        # 正在运行的线程信息
-        tmp_data = {'machine_id': self.machine_id, "limit_process": self.limit_process, "cpu_data": cpu_data,
-                    "mem_data": mem_data, "disk_data": disk_data, "boot_time": boot_time,
-                    "count_process": self.count_process}
-        res = requests.post(url=url, data=tmp_data)
-        return int(res.text)
+    def get_machine_info(self):
+        data = {}
+        cpu_info = psutil.cpu_percent(interval=1, percpu=True)
+        memory_info = psutil.virtual_memory()
+        disk_info = psutil.disk_usage('/')
+        data['cpu_ratio'] = int(sum(cpu_info) / len(cpu_info))
+        data['cpu_core'] = len(cpu_info)
+        data['memory_use'] = int(memory_info.used / 1000000) # 单位 M
+        data['memory_free'] = int(memory_info.free / 1000000) # 单位 M
+        data['disk_free'] = int(disk_info.free / 1000000) # 单位 M
+        data['disk_used'] = int(disk_info.used / 1000000) # 单位 M
+        return data
 
     # 5. 多进程主程序
     def run(self, data):
@@ -152,8 +156,16 @@ class controller(object):
         headers = {'Content-Type': 'application/json'}
         res = requests.post(url=url, headers=headers, data=json.dumps(data))
 
+    # 8. 更新config信息
+    def update_config(self):
+        w = open('config.json', 'w')
+        w.write(json.dumps(self.all_config))
+        w.close()
+
     def work(self):
         begin_time = time.time()
+        print(self.append_machine())
+        exit()
         while True:
             if self.exit_work():
                 exit()
