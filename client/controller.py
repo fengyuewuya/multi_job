@@ -124,7 +124,7 @@ class controller(object):
         disk_info = psutil.disk_usage('/')
         data['cpu_ratio'] = int(sum(cpu_info) / len(cpu_info))
         data['cpu_core'] = len(cpu_info)
-        data['memory_use'] = int(memory_info.used / 1000000) # 单位 M
+        data['memory_used'] = int(memory_info.used / 1000000) # 单位 M
         data['memory_free'] = int(memory_info.free / 1000000) # 单位 M
         data['disk_free'] = int(disk_info.free / 1000000) # 单位 M
         data['disk_used'] = int(disk_info.used / 1000000) # 单位 M
@@ -164,14 +164,13 @@ class controller(object):
 
     def work(self):
         begin_time = time.time()
-        print(self.append_machine())
-        exit()
+        self.append_machine()
         while True:
             if self.exit_work():
                 exit()
             if self.pause_work():
                 continue
-            time.sleep(1.5)
+            time.sleep(30)
             begin_time = time.time()
             begin_time = time.time()
             if self.count_process < self.limit_process:
@@ -180,6 +179,8 @@ class controller(object):
                 self.get_job()
             begin_time = time.time()
             self.get_result()
+            self.append_machine()
+
 
     # 分配任务 多进程执行
     def assign_job(self, data):
@@ -212,6 +213,7 @@ class controller(object):
 
 if __name__ == '__main__':
     tmp = controller()
+    #print(tmp.get_machine_info())
     tmp.work()
     '''
     while True:
