@@ -323,7 +323,12 @@ def get_job_info():
 # 获取job的完成统计情况
 @app.route('/get_job_summary')
 def get_job_summary():
-    res = db.session.execute("select job_type, status, count(1) as job_count from jobs group by job_type, status")
+    job_type = request.args.get('job_type', -1)
+    mysql_1 = ''
+    if job_type != -1:
+        mysql_1 = " where job_type = '%s' " % job_type
+    mysql_0 = "select job_type, status, count(1), max(update_time) as job_count from jobs %s group by job_type, status" % mysql_1
+    res = db.session.execute(mysql_0)
     data = convert_rowproxy_to_dict(res.fetchall())
     return jsonify(code=200, data=data)
 
