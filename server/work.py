@@ -9,6 +9,7 @@ import os
 import time
 from multiprocess import Process, Queue
 import logging, logging.handlers, logging.config
+import uuid
 def main():
     all_config = json.load(open("./config.json"))
     host = all_config["host"]
@@ -58,7 +59,50 @@ class Jobs(db.Model):
         self.result = result
 
     def __repr__(self):
-        return '<User %r>' % self.username
+        return '<job_id %r>' % self.id
+
+    def to_json(self):
+        dic_0 = self.__dict__
+        if "_sa_instance_state" in dic_0:
+            del dic_0["_sa_instance_state"]
+        for k, v in dic_0.items():
+            if isinstance(v, datetime.datetime):
+                dic_0[k] = v.strftime("%Y-%m-%d %H:%M:%S")
+        return dic_0
+
+
+# 0.2.2 初始化Jobs参数
+class Machine(db.Model):
+    machine_id = db.Column(db.String, primary_key=True)
+    name = db.Column(db.Text)
+    tag = db.Column(db.Text)
+    count_process = db.Column(db.Integer, default=0)
+    limit_process = db.Column(db.Integer, default=0)
+    cpu_ratio = db.Column(db.Integer, default=0)
+    cpu_core = db.Column(db.Integer, default=0)
+    memory_used = db.Column(db.Integer, default=0)
+    memory_free = db.Column(db.Integer, default=0)
+    disk_free = db.Column(db.Integer, default=0)
+    disk_used = db.Column(db.Integer, default=0)
+    status = db.Column(db.Integer, default=0)
+    update_time = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+    create_time = db.Column(db.DateTime, default=datetime.datetime.now)
+    def __init__(self, machine_id, name, tag, count_process, limit_process, cpu_ratio, cpu_core, memory_used, memory_free, disk_free, disk_used, status):
+        self.machine_id = machine_id
+        self.name = name
+        self.tag = tag
+        self.count_process = count_process
+        self.limit_process = limit_process
+        self.cpu_ratio = cpu_ratio
+        self.cpu_core = cpu_core
+        self.memory_used = memory_used
+        self.memory_free = memory_free
+        self.disk_free = disk_free
+        self.disk_used = disk_used
+        self.status = status
+
+    def __repr__(self):
+        return '<machine_id %r>' % self.machine_id
 
     def to_json(self):
         dic_0 = self.__dict__
@@ -208,7 +252,7 @@ def update_job():
             status = 3
     Jobs.query.filter_by(id=job_id).update({'status':status, 'return_count':return_count, 'result':result})
     db.session.commit()
-    logging.info("update job status of %s and %s" % (job_id, job_type))
+    logging.info("update job status of %s" % (job_id))
     return jsonify(code=200, status=status, message='ok', data={})
 
 # machine 获取特定job
@@ -254,6 +298,39 @@ def get_job_summary():
 def get_job_details():
     #res = db.session.execute("select job_type, status, count(1) as job_count from jobs group by job_type, status")
     res = db.session.execute("select  *,strftime('%s', update_time) - strftime('%s', create_time) as spend_time from jobs where status > 1")
+    data = convert_rowproxy_to_dict(res.fetchall())
+    return jsonify(code=200, data=data)
+
+# 增加machine信息
+@app.route('/append_machine', methods=["POST"])
+def append_machine():
+    data = json.loads(request.data)
+    if data['machine_id'] == '':
+        data['machine_id'] = uuid.uuid1().hex
+    machine_id = data['machine_id']
+    name = data['name']
+    tag = data['tag']
+    count_process = data['count_process']
+    limit_process = data['limit_process']
+    cpu_ratio = data.get('cpu_ratio', -1)
+    cpu_core = data.get('cpu_core', -1)
+    memory_used = data.get('memory_used', -1)
+    memory_free = data.get('memory_free', -1)
+    disk_free = data.get('disk_free', -1)
+    disk_used = data.get('disk_used', -1)
+    status = data.get('status', 1)
+    new_machine = Machine(machine_id, name, tag, count_process, limit_process,
+            cpu_ratio, cpu_core, memory_used, memory_free, disk_free,
+            disk_used, status)
+    # merge 如果存在就更新数据 ，不存在的话就插入新的数据
+    db.session.merge(new_machine)
+    db.session.commit()
+    return jsonify(code=200, data={})
+
+# 增加machine信息
+@app.route('/get_machine_info', )
+def get_machine_info():
+    res = db.session.execute("select *  from Machine")
     data = convert_rowproxy_to_dict(res.fetchall())
     return jsonify(code=200, data=data)
 if __name__ == '__main__':
