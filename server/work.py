@@ -17,6 +17,8 @@ def main():
     debug = all_config["debug"]
     app.run(host=host, port=port, debug=debug)
 
+# 全局一些变量
+global host, port, base_dir
 base_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(base_dir)
 # 0. 读取相关配置文件
@@ -148,10 +150,10 @@ db.create_all()
 
 # 0.3 设置flask
 # 0.3.1 运行状态等信息
-global host, port
 host = all_config["host"]
 port = all_config["port"]
 debug = all_config["debug"]
+base_dir = os.path.dirname(os.path.abspath(__file__))
 # 0.3.2 设置flask函数
 def operate_return_data(data):
     import os
@@ -178,6 +180,20 @@ def operate_return_data(data):
     headers = {'Content-Type': 'application/json'}
     result['return_data'] = ''
     res = requests.post(url=url, headers=headers, data=json.dumps(result))
+
+def zip_job_file(job_type):
+    # 将附件打包成zip
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    #memory_file = io.BytesIO()
+    job_path = os.path.join(base_dir, 'jobs', job_type)
+    zip_file_name = job_path + '.zip'
+    with zipfile.ZipFile(zip_file_name, "w", zipfile.ZIP_DEFLATED) as zf:
+        for tmp_file in os.listdir(job_path):
+            if tmp_file != '__pycache__' and "return_main" not in tmp_file:
+                with open(os.path.join(job_path, tmp_file), 'rb') as fp:
+                    zf.writestr(tmp_file, fp.read())
+    #memory_file.seek(0)
+    return zip_file_name
 
 @app.route('/')
 def hello_world():
@@ -244,7 +260,20 @@ def update_job_file_status():
     w = open(info_file, 'w')
     w.write(json.dumps({"version":version}))
     w.close()
+    zip_job_file(job_type)
     return jsonify(code=200, message='ok', version=version)
+
+# 获取 job的file文件, zip格式
+@app.route('/get_job_file')
+def get_job_file():
+    if 'job_type' not in request.args:
+        return jsonify(code=203, message='error')
+    job_type = request.args.get('job_type')
+    job_file = os.path.join(base_dir, 'jobs', job_type + '.zip')
+    job_file_name = job_type + '.zip'
+    return send_file(job_file, as_attachment=True,
+                     attachment_filename=job_file_name,
+                     mimetype='application/zip')
 
 @app.route('/get_data')
 def get_data():
@@ -259,9 +288,11 @@ def get_data():
                 with open(os.path.join(job_path, tmp_file), 'rb') as fp:
                     zf.writestr(tmp_file, fp.read())
     memory_file.seek(0)
-    return send_file(memory_file, as_attachment=True,
-                     attachment_filename=job_type+'.zip',
-                     mimetype='application/zip')
+    zip_file_name = job_type+'.zip'
+    return zip_file_name
+    #return send_file(memory_file, as_attachment=True,
+    #                 attachment_filename=job_type+'.zip',
+    #                 mimetype='application/zip')
 
 # 更新任务状态，为运行成功或者失败
 # 任务状态 0 等待分发， 1 运行中， 2 运行成功， -1 运行失败, -2 回调函数计算失败

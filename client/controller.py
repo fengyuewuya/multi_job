@@ -83,7 +83,7 @@ class controller(object):
     def get_job_file(self, job_type):
         logging.info("获取的程序文件 %s" % job_type)
         file_name = 'jobs/' + job_type + '.zip'
-        data_url = self.base_url + 'get_data?job_type=' + job_type
+        data_url = self.base_url + 'get_job_file?job_type=' + job_type
         res = requests.get(data_url)
         with open(file_name, "wb") as code:
             code.write(res.content)
@@ -95,6 +95,9 @@ class controller(object):
         if zipfile.is_zipfile(file_name):
             fz = zipfile.ZipFile(file_name, 'r')
             for tmp_file in fz.namelist():
+                tmp_file_0 = os.path.join(file_path, tmp_file)
+                if os.path.exists(tmp_file_0):
+                    os.remove(tmp_file_0)
                 fz.extract(tmp_file, file_path)
         else:
             logging.error("This is not zip")
