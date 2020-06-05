@@ -70,6 +70,29 @@ class Jobs(db.Model):
                 dic_0[k] = v.strftime("%Y-%m-%d %H:%M:%S")
         return dic_0
 
+# 0.2.3 初始化Job_file参数
+class Job_file(db.Model):
+    job_type = db.Column(db.String(32), primary_key=True)
+    job_file = db.Column(db.String(128))
+    version = db.Column(db.Integer, default=0)
+    update_time = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+    create_time = db.Column(db.DateTime, default=datetime.datetime.now)
+
+    def __init__(self, job_type, job_file):
+        self.job_type = job_type
+        self.job_file = job_file
+
+    def __repr__(self):
+        return '<job_type %r>' % self.job_type
+
+    def to_json(self):
+        dic_0 = self.__dict__
+        if "_sa_instance_state" in dic_0:
+            del dic_0["_sa_instance_state"]
+        for k, v in dic_0.items():
+            if isinstance(v, datetime.datetime):
+                dic_0[k] = v.strftime("%Y-%m-%d %H:%M:%S")
+        return dic_0
 
 # 0.2.2 初始化Jobs参数
 class Machine(db.Model):
@@ -189,28 +212,39 @@ def insert_job():
 # 检测任务文件的状态 如果状态比较旧就返回 1
 @app.route('/check_job_file_status')
 def check_job_file_status():
-    time_local = request.args.get("local_time", -1)
-    time_local = int(time_local)
+    local_version = int(request.args.get("version", -1))
     job_type = request.args.get("job_type", -1)
-    version_file = os.path.join('./', 'jobs', job_type, '.VERSION')
-    st_mtime_0 = os.stat(version_file).st_mtime
-    # 说明 job 文件已经更新
-    if st_mtime_0 > int(time_local):
+    tmp_job_file = Job_file.query.filter_by(job_type=job_type).first()
+    if not tmp_job_file:
+        # 说明该jobs_type
+        return jsonify(code=200, message='ok', status=-2)
+    if tmp_job_file.version > local_version:
+        # 说明 job 文件已经更新
         return jsonify(code=200, message='ok', status=1)
     else:
+        # 说明 job 文件没更新
         return jsonify(code=200, message='ok', status=-1)
 
-# 检测任务文件的状态 如果状态比较旧就返回 1
+# 更新job_file 状态
 @app.route('/update_job_file_status')
 def update_job_file_status():
     job_type = request.args.get("job_type", -1)
+    job_type = str(job_type)
     job_path = os.path.join('./', 'jobs', job_type)
-    version_file = os.path.join(job_path, ".VERSION")
-    tmp_time = str(time.time())
-    w = open(version_file, 'w')
-    w.write(tmp_time)
+    tmp_job_file = Job_file.query.filter_by(job_type=job_type).first()
+    version = 0
+    if tmp_job_file:
+        tmp_job_file.version = tmp_job_file.version + 1
+        version = tmp_job_file.version
+    else:
+        tmp_job_file = Job_file(job_type, job_path)
+    db.session.merge(tmp_job_file)
+    db.session.commit()
+    info_file = os.path.join(job_path, ".info")
+    w = open(info_file, 'w')
+    w.write(json.dumps({"version":version}))
     w.close()
-    return jsonify(code=200, time_now=tmp_time, message='ok', data={})
+    return jsonify(code=200, message='ok', version=version)
 
 @app.route('/get_data')
 def get_data():
