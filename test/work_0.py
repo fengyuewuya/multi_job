@@ -4,7 +4,7 @@ import json
 import time
 for line in ["郑州", "杭州", "环保"]:
     data = {
-     'job_type':'get_1688',
+     'job_type':'get_1688_info',
      'input_data': line.strip()
     }
     url = 'http://127.0.0.1:5006/insert_job'
