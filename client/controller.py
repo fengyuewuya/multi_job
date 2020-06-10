@@ -46,18 +46,23 @@ queue_0 = Queue(9999)
 class controller(object):
     def __init__(self, config = "./config.json"):
         logging.info("开始初始化")
-        all_config = json.loads(open(config).read())
+        self.config = config
+        # 初始化 运行参数
+        self.get_config()
+        # 记录运行情况
+        self.count_process = 0
+        self.count_done_job = 0
+        self.count_all_job = 0
+
+    # 获取 config 信息
+    def get_config(self):
+        all_config = json.loads(open(self.config).read())
         self.all_config = all_config
-        print(all_config)
         self.machine_id = all_config['machine_id']
         self.name = all_config['name']
         self.tag = all_config['tag']
         self.base_url = all_config['host'].strip('/') + ":%s" % all_config['port'] + '/'
-        # 设置相关的运行参数
         self.limit_process = all_config['limit_process']
-        self.count_process = 0
-        self.count_done_job = 0
-        self.count_all_job = 0
 
     # 获取一个job
     def get_job(self):
@@ -108,6 +113,8 @@ class controller(object):
 
     # 2. 注册服务器
     def append_machine(self):
+        # 更新下参数信息
+        self.get_config()
         # 注册服务器，并上传服务器的各种信息, 获取uuid
         url = self.base_url + 'append_machine'
         headers = {'Content-Type': 'application/json'}
