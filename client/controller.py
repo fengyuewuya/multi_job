@@ -79,11 +79,14 @@ class controller(object):
 
     # 检测job文件是否更新
     def check_job_file(self, job_type):
+        # 返回 0 需要更新， 1 不需要更新
+        if not os.path.exists("jobs/" + job_type):
+            return 0
         version = json.loads(open("jobs/" + job_type + '/.info').read()).get('version', -1)
         check_job_file_url = self.base_url + 'check_job_file_status?job_type=' + job_type
         check_job_file_url = check_job_file_url + '&version=' + str(version)
         result = requests.get(check_job_file_url).json()
-        # status 为 1文件需要更新， -2 文件不存在 ，-1 文件不需要更新
+        # status 为 1文件需要更新， -2 文件不存在 ，0 文件不需要更新
         if result['status'] == 0:
             return 1
         return 0

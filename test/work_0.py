@@ -10,7 +10,7 @@ all_data = [k[0] for k in cursor.fetchall()]
 list_tmp = []
 for i in range(len(all_data)):
     list_tmp.append(all_data[i])
-    if i != 0 and i % 1000 == 0:
+    if i != 0 and i % 200 == 0:
         data = {
          'job_type':'get_member_id',
          'input_data': list_tmp

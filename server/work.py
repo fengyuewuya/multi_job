@@ -360,7 +360,9 @@ def get_job_summary():
     mysql_1 = ''
     if job_type != -1:
         mysql_1 = " where job_type = '%s' " % job_type
-    mysql_0 = "select job_type, status, count(1), max(update_time) as job_count from jobs %s group by job_type, status" % mysql_1
+    mysql_0 = "select job_type, status, count(1) as count_job, avg(return_count) as return_count, max(update_time) as update_time, round(avg(strftime('%s', update_time) - strftime('%s', create_time)), 2)  as spend_time from jobs"
+    mysql_2 = " group by job_type, status"
+    mysql_0 = mysql_0 + mysql_1 + mysql_2
     res = db.session.execute(mysql_0)
     data = convert_rowproxy_to_dict(res.fetchall())
     return jsonify(code=200, data=data)
@@ -377,8 +379,10 @@ def get_job_details():
 @app.route('/append_machine', methods=["POST"])
 def append_machine():
     data = json.loads(request.data)
+    return_data = {}
     if data['machine_id'] == '':
         data['machine_id'] = uuid.uuid1().hex
+        return_data['machine_id'] = uuid.uuid1().hex
     machine_id = data['machine_id']
     name = data['name']
     tag = data['tag']
@@ -397,7 +401,7 @@ def append_machine():
     # merge 如果存在就更新数据 ，不存在的话就插入新的数据
     db.session.merge(new_machine)
     db.session.commit()
-    return jsonify(code=200, data={})
+    return jsonify(code=200, data=return_data)
 
 # 增加machine信息
 @app.route('/get_machine_info', )
