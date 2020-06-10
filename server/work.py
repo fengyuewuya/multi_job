@@ -216,7 +216,7 @@ def insert_job():
     if len(str(job_type)) <= 1:
         return jsonify(code=300, status=0, message='failed', data='job_type not found')
 
-    input_data = data.get('input_data', '')
+    input_data = str(data.get('input_data', ''))
     params = data.get('params', '')
     limit_count = data.get('limit_count', 1)
     new_job = Jobs(job_type, input_data, params, limit_count, 0)
@@ -232,14 +232,14 @@ def check_job_file_status():
     job_type = request.args.get("job_type", -1)
     tmp_job_file = Job_file.query.filter_by(job_type=job_type).first()
     if not tmp_job_file:
-        # 说明该jobs_type
+        # 说明不存在该 jobs_type
         return jsonify(code=200, message='ok', status=-2)
     if tmp_job_file.version > local_version:
         # 说明 job 文件已经更新
         return jsonify(code=200, message='ok', status=1)
     else:
         # 说明 job 文件没更新
-        return jsonify(code=200, message='ok', status=-1)
+        return jsonify(code=200, message='ok', status=0)
 
 # 更新job_file 状态
 @app.route('/update_job_file_status')
@@ -258,7 +258,7 @@ def update_job_file_status():
     db.session.commit()
     info_file = os.path.join(job_path, ".info")
     w = open(info_file, 'w')
-    w.write(json.dumps({"version":version}))
+    w.write(json.dumps({"version":version,"time":int(time.time())}))
     w.close()
     zip_job_file(job_type)
     return jsonify(code=200, message='ok', version=version)
@@ -316,6 +316,8 @@ def update_job():
         else:
             status = 3
     Jobs.query.filter_by(id=job_id).update({'status':status, 'return_count':return_count, 'result':result})
+    if status == -1:
+        logging.error(result)
     db.session.commit()
     logging.info("update job status of %s" % (job_id))
     return jsonify(code=200, status=status, message='ok', data={})

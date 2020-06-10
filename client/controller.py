@@ -2,6 +2,7 @@
 import sqlite3
 import os
 import sys
+import gc
 abs_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(abs_path)
 import time
@@ -60,7 +61,6 @@ class controller(object):
 
     # 获取一个job
     def get_job(self):
-        begin_time = time.time()
         data_all = requests.get(self.base_url + 'get_job').json()
         data = data_all['data']
         if data_all['status'] == 1:
@@ -74,8 +74,12 @@ class controller(object):
 
     # 检测job文件是否更新
     def check_job_file(self, job_type):
-        file_name = 'jobs/' + job_type + '.zip'
-        if os.path.exists(file_name):
+        version = json.loads(open("jobs/" + job_type + '/.info').read()).get('version', -1)
+        check_job_file_url = self.base_url + 'check_job_file_status?job_type=' + job_type
+        check_job_file_url = check_job_file_url + '&version=' + str(version)
+        result = requests.get(check_job_file_url).json()
+        # status 为 1文件需要更新， -2 文件不存在 ，-1 文件不需要更新
+        if result['status'] == 0:
             return 1
         return 0
 
@@ -115,8 +119,8 @@ class controller(object):
         data = res.json()['data']
         if self.machine_id == '':
             self.machine_id = data['machine_id']
-        self.all_config['machine_id'] = self.machine_id
-        self.update_config()
+            self.all_config['machine_id'] = self.machine_id
+            self.update_config()
         return 1
 
     # 3. 获取服务器的运行状态
@@ -148,9 +152,13 @@ class controller(object):
             self.count_done_job += 1
             self.count_process -= 1
             data = queue_0.get()
+            # 如果状态是-1， 表明存在错误
+            if data['status'] == -1:
+                logging.error(data)
             if data:
                 # 上传数据
                 self.upload_data(data)
+            gc.collect()
         return data
 
     # 7. 上传结果
@@ -166,21 +174,20 @@ class controller(object):
         w.close()
 
     def work(self):
-        begin_time = time.time()
         self.append_machine()
         while True:
             if self.exit_work():
                 exit()
             if self.pause_work():
                 continue
-            time.sleep(30)
-            begin_time = time.time()
-            begin_time = time.time()
             if self.count_process < self.limit_process:
                 logging.info("当前的总体任务 %s，已经完成的任务 %s，正在跑的任务 %s" % (self.count_all_job,
                     self.count_done_job, self.count_process))
                 self.get_job()
-            begin_time = time.time()
+                time.sleep(1)
+            else:
+                # 任务满载
+                time.sleep(30)
             self.get_result()
             self.append_machine()
 
