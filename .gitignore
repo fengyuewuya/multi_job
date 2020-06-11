@@ -3,3 +3,4 @@
 client/config.json
 server/data.db
 */tmp
+test/*
