@@ -360,7 +360,7 @@ def get_job_summary():
     mysql_1 = ''
     if job_type != -1:
         mysql_1 = " where job_type = '%s' " % job_type
-    mysql_0 = "select job_type, status, count(1) as count_job, sum(return_count) as all_count, avg(return_count) as return_count, max(update_time) as update_time, round(avg(strftime('%s', update_time) - strftime('%s', create_time)), 2)  as spend_time from jobs"
+    mysql_0 = "select job_type, status, count(1) as count_job, sum(return_count) as all_count, avg(return_count) as return_count, max(update_time) as update_time, round(avg(strftime('%s', update_time) - strftime('%s', create_time)), 2) as spend_time, round((strftime('%s', max(update_time)) - strftime('%s', min(update_time))) / (count(1) + 1), 2)  as avg_time from jobs"
     mysql_2 = " group by job_type, status"
     mysql_0 = mysql_0 + mysql_1 + mysql_2
     res = db.session.execute(mysql_0)
