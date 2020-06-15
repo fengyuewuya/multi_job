@@ -13,7 +13,8 @@ for i in range(len(all_data)):
     if i != 0 and i % 200 == 0:
         data = {
          'job_type':'get_member_id',
-         'input_data': list_tmp
+         'input_data': list_tmp,
+         'tag': '1688'
         }
         url = 'http://127.0.0.1:5006/insert_job'
         headers = {'Content-Type': 'application/json'} ## headers中添加上content-type这个参数，指定为json格式
@@ -23,7 +24,8 @@ for i in range(len(all_data)):
 
 data = {
  'job_type':'get_member_id',
- 'input_data': list_tmp
+ 'input_data': list_tmp,
+ 'tag': '1688'
 }
 url = 'http://127.0.0.1:5006/insert_job'
 headers = {'Content-Type': 'application/json'} ## headers中添加上content-type这个参数，指定为json格式

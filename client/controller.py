@@ -18,10 +18,12 @@ def append_process(data, queue_0):
     import os
     import sys
     import importlib
+    import time
     file_path = 'jobs/' + data['job_type'] + '/'
     os.chdir(file_path)
     sys.path.append('./')
     result = {}
+    begin_time = time.time()
     try:
         main = importlib.import_module('main')  # 绝对导入
         tmp_result = main.work(data)
@@ -33,8 +35,10 @@ def append_process(data, queue_0):
         result = {'result': str(e), 'count': 0}
         result['status'] = -1
         result['return_data'] = ''
+    end_time = time.time()
     result['id'] = data['id']
     result['job_type'] = data['job_type']
+    result['spend_time'] = end_time - begin_time
     queue_0.put(result)
 
 # 0. 读取logger配置文件, 并配置logger
@@ -53,6 +57,9 @@ class controller(object):
         self.count_process = 0
         self.count_done_job = 0
         self.count_all_job = 0
+        # 记录网络参数
+        self.headers = {'Content-Type': 'application/json'}
+        self.cookies = {"machine_id":self.machine_id, "tag":self.tag}
 
     # 获取 config 信息
     def get_config(self):
@@ -66,7 +73,7 @@ class controller(object):
 
     # 获取一个job
     def get_job(self):
-        data_all = requests.get(self.base_url + 'get_job').json()
+        data_all = requests.get(self.base_url + 'get_job', cookies=self.cookies).json()
         data = data_all['data']
         if data_all['status'] == 1:
             logging.info("开启了 %s 的任务" % data['job_type'])
@@ -120,16 +127,16 @@ class controller(object):
         self.get_config()
         # 注册服务器，并上传服务器的各种信息, 获取uuid
         url = self.base_url + 'append_machine'
-        headers = {'Content-Type': 'application/json'}
         tmp_data = {'machine_id': self.machine_id, "tag": self.tag, "limit_process": self.limit_process, "name": self.name, "count_process": self.count_process, "status":1}
         machine_info = self.get_machine_info()
         for k, v in machine_info.items():
             tmp_data[k] = v
-        res = requests.post(url=url, data=json.dumps(tmp_data), headers=headers)
+        res = requests.post(url=url, data=json.dumps(tmp_data), headers=self.headers, cookies=self.cookies)
         data = res.json()['data']
         if self.machine_id == '':
             self.machine_id = data['machine_id']
             self.all_config['machine_id'] = self.machine_id
+            self.cookies['machine_id'] = self.machine_id
             self.update_config()
         return 1
 
@@ -162,21 +169,21 @@ class controller(object):
             self.count_done_job += 1
             self.count_process -= 1
             data = queue_0.get()
+            print(data)
             # 如果状态是-1， 表明存在错误
             if data['status'] == -1:
                 logging.error(data)
             if data:
                 # 上传数据
                 self.upload_data(data)
-            logging.info("上传数据成功 job_id %s " % data['job_id'])
+            logging.info("上传数据成功 job_id %s " % data['id'])
             gc.collect()
         return data
 
     # 7. 上传结果
     def upload_data(self, data):
         url = self.base_url + 'update_job'
-        headers = {'Content-Type': 'application/json'}
-        res = requests.post(url=url, headers=headers, data=json.dumps(data))
+        res = requests.post(url=url, data=json.dumps(data), headers=self.headers, cookies=self.cookies)
 
     # 8. 更新config信息
     def update_config(self):
@@ -233,9 +240,13 @@ class controller(object):
         else:
             return False
 
+    def test_post(self):
+        res = requests.post('http://httpbin.org/post', data=json.dumps({"a":1}), headers=self.headers, cookies=self.cookies)
+        print(res.json())
 if __name__ == '__main__':
     tmp = controller()
     #print(tmp.get_machine_info())
+    #print(tmp.test_post())
     tmp.work()
     '''
     while True:

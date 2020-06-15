@@ -1,6 +1,7 @@
 # coding=utf-8
 from flask import Flask, request, jsonify, json, send_file, g
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import and_, or_
 import datetime
 import json
 import zipfile
@@ -45,20 +46,24 @@ class Jobs(db.Model):
     input_data = db.Column(db.Text)
     params = db.Column(db.Text)
     limit_count = db.Column(db.Integer, default=1)
+    tag = db.Column(db.Text)
     status = db.Column(db.Integer, default=0)
     return_count = db.Column(db.Integer, default=0)
     result = db.Column(db.Text, default='')
+    spend_time = db.Column(db.Integer)
     update_time = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
     create_time = db.Column(db.DateTime, default=datetime.datetime.now)
 
-    def __init__(self, job_type, input_data, params, limit_count=1, status=1, return_count=1, result=''):
+    def __init__(self, job_type, input_data, params, limit_count=1, tag='', status=1, return_count=1, result='', spend_time=0):
         self.job_type = job_type
         self.input_data = input_data
         self.params = params
         self.limit_count = limit_count
+        self.tag = tag
         self.status = status
         self.return_count = return_count
         self.result = result
+        self.spend_time = spend_time
 
     def __repr__(self):
         return '<job_id %r>' % self.id
@@ -98,7 +103,7 @@ class Job_file(db.Model):
 
 # 0.2.2 初始化Jobs参数
 class Machine(db.Model):
-    machine_id = db.Column(db.String, primary_key=True)
+    machine_id = db.Column(db.String(128), primary_key=True)
     name = db.Column(db.Text)
     tag = db.Column(db.Text)
     count_process = db.Column(db.Integer, default=0)
@@ -219,7 +224,9 @@ def insert_job():
     input_data = str(data.get('input_data', ''))
     params = data.get('params', '')
     limit_count = data.get('limit_count', 1)
-    new_job = Jobs(job_type, input_data, params, limit_count, 0)
+    status = 0
+    tag = data.get('tag', '')
+    new_job = Jobs(job_type, input_data, params, limit_count, status=status, tag=tag)
     db.session.add(new_job)
     db.session.commit()
     logging.info("insert a job of %s" % job_type)
@@ -302,8 +309,9 @@ def update_job():
     job_id = data.get('id')
     status = data.get('status', -1)
     return_count = data.get('count', 0 if status < 0 else 1)
-    result = data.get('result', '')
-    result = str({'result':result})
+    result = str(data.get('result', ''))
+    #result = str({'result':result})
+    spend_time = data.get('spend_time', -1)
     return_data = data.get('return_data', '')
     if not job_id:
         return jsonify(code=300, status=-1, message='failed', data={})
@@ -315,7 +323,8 @@ def update_job():
             p.start()
         else:
             status = 3
-    Jobs.query.filter_by(id=job_id).update({'status':status, 'return_count':return_count, 'result':result})
+    #Jobs.query.filter(Jobs.id==job_id).update({'status':status, 'return_count':return_count, 'result':result, 'spend_time':spend_time})
+    Jobs.query.filter_by(id=job_id).update({'status':status, 'return_count':return_count, 'result':result, 'spend_time':spend_time})
     if status == -1:
         logging.error(result)
     db.session.commit()
@@ -326,10 +335,11 @@ def update_job():
 @app.route('/get_job')
 def get_job():
     job_type = request.args.get('job_type')
-    query_0 = Jobs.query.filter_by(status=0)
+    tag = request.cookies.get('tag', '')
+    query_0 = Jobs.query.filter(Jobs.status==0).filter(or_(Jobs.tag == '', Jobs.tag.in_(tag.split('|'))))
     # 如果存在特定的job_type，就筛选特定的job_type
     if job_type:
-        query_0 = query_0.filter_by(job_type=job_type)
+        query_0 = query_0.filter(job_type=job_type)
     data = query_0.order_by('create_time').first()
     if data is None:
         return jsonify(code=302, status=0, message='No Job', data='')
