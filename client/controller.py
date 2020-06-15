@@ -168,6 +168,7 @@ class controller(object):
             if data:
                 # 上传数据
                 self.upload_data(data)
+            logging.info("上传数据成功 job_id %s " % data['job_id'])
             gc.collect()
         return data
 
@@ -186,9 +187,12 @@ class controller(object):
     def work(self):
         self.append_machine()
         while True:
+            self.get_result()
+            self.append_machine()
             if self.exit_work():
                 exit()
             if self.pause_work():
+                time.sleep(30)
                 continue
             if self.count_process < self.limit_process:
                 logging.info("当前的总体任务 %s，已经完成的任务 %s，正在跑的任务 %s" % (self.count_all_job,
@@ -198,8 +202,6 @@ class controller(object):
             else:
                 # 任务满载
                 time.sleep(30)
-            self.get_result()
-            self.append_machine()
 
 
     # 分配任务 多进程执行
