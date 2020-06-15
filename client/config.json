@@ -1,1 +1,1 @@
-{"host": "http://127.0.0.1/", "port": "5006", "limit_count": 99999999, "limit_process": 80, "machine_id": "2f37b4acaf1a11ea855a4547dc4ea0a6", "name": "my", "tag": ""}
+{"host": "http://127.0.0.1/", "port": "5006", "limit_count": 99999999, "limit_process": 80, "machine_id": "", "name": "my", "tag": ""}
