@@ -177,7 +177,6 @@ class controller(object):
             self.count_done_job += 1
             self.count_process -= 1
             data = queue_0.get()
-            print(data)
             # 如果状态是-1， 表明存在错误
             if data['status'] == -1:
                 logging.error(data)

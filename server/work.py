@@ -179,7 +179,7 @@ def operate_return_data(data):
         logging.info("operate return data of %s, %s" % (data['job_type'], result['result']))
     except Exception as e:
         result['result'] = str(result['result']) + '\n' + str(e)
-        logging.exception("error in open return data , %s" % result['job_id'])
+        logging.exception("error in open return data , %s" % result['id'])
         result['status'] = -2
     url = 'http://localhost:%s/' % port + 'update_job'
     headers = {'Content-Type': 'application/json'}
