@@ -411,7 +411,7 @@ def append_machine():
     # merge 如果存在就更新数据 ，不存在的话就插入新的数据
     db.session.merge(new_machine)
     db.session.commit()
-    return jsonify(code=200, data=return_data)
+    return jsonify(code=200, data=new_machine.to_json())
 
 # 增加machine信息
 @app.route('/get_machine_info', )
