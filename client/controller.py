@@ -133,11 +133,19 @@ class controller(object):
             tmp_data[k] = v
         res = requests.post(url=url, data=json.dumps(tmp_data), headers=self.headers, cookies=self.cookies)
         data = res.json()['data']
+        # 更新 machine_id
         if self.machine_id == '':
             self.machine_id = data['machine_id']
             self.all_config['machine_id'] = self.machine_id
             self.cookies['machine_id'] = self.machine_id
-            self.update_config()
+        # 更新 limit_count
+        self.limit_process = data['limit_process']
+        self.all_config['limit_process'] = self.limit_process
+        # 更新 tag
+        self.tag = data['tag']
+        self.all_config['tag'] = self.tag
+        # 更新任务
+        self.update_config()
         return 1
 
     # 3. 获取服务器的运行状态
