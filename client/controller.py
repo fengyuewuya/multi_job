@@ -96,7 +96,16 @@ class controller(object):
         version = json.loads(open("jobs/" + job_type + '/.info').read()).get('version', -1)
         check_job_file_url = self.base_url + 'check_job_file_status?job_type=' + job_type
         check_job_file_url = check_job_file_url + '&version=' + str(version)
-        result = requests.get(check_job_file_url).json()
+        flag = 0
+        for i in range(5):
+            try:
+                result = requests.get(check_job_file_url, timeout=3).json()
+                flag = 1
+                break
+            except Exception as e:
+                logging.error(('check_job_file', i, e))
+        if flag == 0:
+            return 0
         # status 为 1文件需要更新， -2 文件不存在 ，0 文件不需要更新
         if result['status'] == 0:
             return 1

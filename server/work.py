@@ -428,7 +428,7 @@ def append_machine():
 # 增加machine信息
 @app.route('/get_machine_info', )
 def get_machine_info():
-    res = db.session.execute("select *  from Machine")
+    res = db.session.execute("select *  from machine")
     data = convert_rowproxy_to_dict(res.fetchall())
     return jsonify(code=200, data=data)
 if __name__ == '__main__':
