@@ -73,7 +73,10 @@ class controller(object):
 
     # 获取一个job
     def get_job(self):
-        data_all = requests.get(self.base_url + 'get_job', cookies=self.cookies).json()
+        try:
+            data_all = requests.get(self.base_url + 'get_job', cookies=self.cookies, timeout=3).json()
+        except Exception as e:
+            logging.error(('get_job', e))
         data = data_all['data']
         if data_all['status'] == 1:
             logging.info("开启了 %s 的任务" % data['job_type'])
