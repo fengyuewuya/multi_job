@@ -11,12 +11,13 @@ import time
 from multiprocess import Process, Queue
 import logging, logging.handlers, logging.config
 import uuid
+import decimal
 def main():
     all_config = json.load(open("./config.json"))
     host = all_config["host"]
     port = all_config["port"]
     debug = all_config["debug"]
-    app.run(host=host, port=port, debug=debug)
+    app.run(host=host, port=port, debug=debug, threaded=True)
 
 # 全局一些变量
 global host, port, base_dir
@@ -147,7 +148,17 @@ def convert_rowproxy_to_dict(data):
     # 将fetchall 返回的list 转换为 json list
     return_data = []
     for line in data:
-        return_data.append(dict((zip(line.keys(), line))))
+        tmp_dict = {}
+        all_keys = line.keys()
+        for i in range(len(all_keys)):
+            k = all_keys[i]
+            v = line[i]
+            if isinstance(v, decimal.Decimal):  # for decimal
+                v = float(v)
+            if isinstance(v, datetime.datetime):  # for datetime
+                v = v.strftime("%Y-%m-%d %H:%M:%S")
+            tmp_dict[k] = v
+        return_data.append(tmp_dict)
     return return_data
 
 # 0.2.3 进行表格创建
@@ -370,7 +381,8 @@ def get_job_summary():
     mysql_1 = ''
     if job_type != -1:
         mysql_1 = " where job_type = '%s' " % job_type
-    mysql_0 = "select job_type, status, count(1) as count_job, sum(return_count) as all_count, avg(return_count) as return_count, max(update_time) as update_time, round(avg(strftime('%s', update_time) - strftime('%s', create_time)), 2) as spend_time, round((strftime('%s', max(update_time)) - strftime('%s', min(update_time))) / (count(1) + 1), 2)  as avg_time from jobs"
+    mysql_0 = "select job_type, status, count(1) as count_job, sum(return_count) as all_count, avg(return_count) as return_count, max(update_time) as update_time, avg(spend_time) as spend_time from jobs"
+    #mysql_0 = "select job_type, status, count(1) as count_job, avg(return_count) as return_count,max(update_time) as update_time from jobs"
     mysql_2 = " group by job_type, status"
     mysql_0 = mysql_0 + mysql_1 + mysql_2
     res = db.session.execute(mysql_0)

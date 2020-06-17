@@ -76,7 +76,8 @@ class controller(object):
         try:
             data_all = requests.get(self.base_url + 'get_job', cookies=self.cookies, timeout=3).json()
         except Exception as e:
-            logging.error(('get_job', e))
+            logging.error(('获取任务失败', e))
+            return 1
         data = data_all['data']
         if data_all['status'] == 1:
             logging.info("开启了 %s 的任务" % data['job_type'])
@@ -134,7 +135,18 @@ class controller(object):
         machine_info = self.get_machine_info()
         for k, v in machine_info.items():
             tmp_data[k] = v
-        res = requests.post(url=url, data=json.dumps(tmp_data), headers=self.headers, cookies=self.cookies)
+        flag = 0
+        # 限制5次请求
+        for i in range(5):
+            time.sleep(0.1)
+            try:
+                res = requests.post(url=url, data=json.dumps(tmp_data), headers=self.headers, cookies=self.cookies, timeout=3)
+                flag = 1
+                break
+            except Exception as e:
+                logging.error(("上传机器信息错误", e))
+        if flag == 0:
+            return 0
         data = res.json()['data']
         # 更新 machine_id
         if self.machine_id == '':
@@ -186,14 +198,23 @@ class controller(object):
             if data:
                 # 上传数据
                 self.upload_data(data)
-            logging.info("上传数据成功 job_id %s " % data['id'])
             gc.collect()
         return data
 
     # 7. 上传结果
     def upload_data(self, data):
         url = self.base_url + 'update_job'
-        res = requests.post(url=url, data=json.dumps(data), headers=self.headers, cookies=self.cookies)
+        flag = 0
+        for i in range(5):
+            time.sleep(0.1)
+            try:
+                res = requests.post(url=url, data=json.dumps(data), headers=self.headers, cookies=self.cookies, timeout=3)
+                flag = 1
+                logging.info("上传数据成功 job_id %s " % data['id'])
+                break
+            except Exception as e:
+                logging.error(('上传数据失败 job_id %s ' % data['id'], flag, data))
+        return flag
 
     # 8. 更新config信息
     def update_config(self):
@@ -212,7 +233,7 @@ class controller(object):
                 time.sleep(30)
                 continue
             if self.count_process < self.limit_process:
-                logging.info("当前的总体任务 %s，已经完成的任务 %s，正在跑的任务 %s" % (self.count_all_job,
+                logging.info("总体任务 %s，完成任务 %s，运行任务 %s" % (self.count_all_job,
                     self.count_done_job, self.count_process))
                 self.get_job()
                 time.sleep(1)
