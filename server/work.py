@@ -52,10 +52,11 @@ class Jobs(db.Model):
     return_count = db.Column(db.Integer, default=0)
     result = db.Column(db.Text, default='')
     spend_time = db.Column(db.Integer)
+    batch = db.Column(db.String(32)) # 生产批次
     update_time = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
     create_time = db.Column(db.DateTime, default=datetime.datetime.now)
 
-    def __init__(self, job_type, input_data, params, limit_count=1, tag='', status=1, return_count=1, result='', spend_time=0):
+    def __init__(self, job_type, input_data, params, limit_count=1, tag='', status=1, return_count=1, result='', spend_time=0, batch=''):
         self.job_type = job_type
         self.input_data = input_data
         self.params = params
@@ -65,6 +66,9 @@ class Jobs(db.Model):
         self.return_count = return_count
         self.result = result
         self.spend_time = spend_time
+        if batch == '':
+            batch = time.strftime("%Y-%m-%d", time.localtime())
+        self.batch = batch
 
     def __repr__(self):
         return '<job_id %r>' % self.id
@@ -231,13 +235,13 @@ def insert_job():
     job_type = data.get('job_type', '')
     if len(str(job_type)) <= 1:
         return jsonify(code=300, status=0, message='failed', data='job_type not found')
-
     input_data = str(data.get('input_data', ''))
     params = data.get('params', '')
     limit_count = data.get('limit_count', 1)
-    status = 0
+    batch = data.get('batch', '')
     tag = data.get('tag', '')
-    new_job = Jobs(job_type, input_data, params, limit_count, status=status, tag=tag)
+    status = 0
+    new_job = Jobs(job_type, input_data, params, limit_count, status=status, tag=tag, batch=batch)
     db.session.add(new_job)
     db.session.commit()
     logging.info("insert a job of %s" % job_type)
@@ -375,16 +379,24 @@ def get_job_info():
     return jsonify(code=200, status=1, message='ok', data=data)
 
 # 获取job的完成统计情况
-@app.route('/get_job_summary')
-def get_job_summary():
+@app.route('/get_job_statistics')
+def get_job_statistics():
     job_type = request.args.get('job_type', -1)
     mysql_1 = ''
     if job_type != -1:
         mysql_1 = " where job_type = '%s' " % job_type
-    mysql_0 = "select job_type, status, count(1) as count_job, sum(return_count) as all_count, avg(return_count) as return_count, max(update_time) as update_time, avg(spend_time) as spend_time from jobs"
+    mysql_0 = "select job_type, batch, status, count(1) as count_job, sum(return_count) as all_count, avg(return_count) as return_count, max(update_time) as update_time, avg(spend_time) as spend_time from jobs"
     #mysql_0 = "select job_type, status, count(1) as count_job, avg(return_count) as return_count,max(update_time) as update_time from jobs"
-    mysql_2 = " group by job_type, status"
+    mysql_2 = " group by job_type, status, batch"
     mysql_0 = mysql_0 + mysql_1 + mysql_2
+    res = db.session.execute(mysql_0)
+    data = convert_rowproxy_to_dict(res.fetchall())
+    return jsonify(code=200, data=data)
+
+# 获取job的summary
+@app.route('/get_job_summary')
+def get_job_summary():
+    mysql_0 = "select a.job_type, a.batch, a.tag, sum(case when a.status = 0 then 1 else 0 end) as pending_task, sum(case when a.status = 1 then 1 else 0 end) as working_task, sum(case when a.status = 2 then 1 else 0 end) as finished_task, sum(case when a.status = -1 then 1 else 0 end) as failed_task, min(a.create_time) as begin_time, max(a.update_time) as update_time from jobs a group by a.job_type, a.batch"
     res = db.session.execute(mysql_0)
     data = convert_rowproxy_to_dict(res.fetchall())
     return jsonify(code=200, data=data)
