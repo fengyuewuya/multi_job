@@ -351,7 +351,7 @@ def update_job():
 def get_job():
     job_type = request.args.get('job_type')
     tag = request.cookies.get('tag', '')
-    query_0 = Jobs.query.filter(Jobs.status==0).filter(or_(Jobs.tag == '', Jobs.tag.in_(tag.split(','))))
+    query_0 = Jobs.query.filter(Jobs.status==0).filter(or_(Jobs.tag == '', Jobs.tag.in_(tag.replace(' ', '').split(','))))
     # 如果存在特定的job_type，就筛选特定的job_type
     if job_type:
         query_0 = query_0.filter(job_type=job_type)
