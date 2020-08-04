@@ -151,12 +151,12 @@ class controller(object):
             try:
                 res = requests.post(url=url, data=json.dumps(tmp_data), headers=self.headers, cookies=self.cookies, timeout=3)
                 flag = 1
+                data = res.json()['data']
                 break
             except Exception as e:
                 logging.error(("上传机器信息错误", e))
         if flag == 0:
             return 0
-        data = res.json()['data']
         # 更新 machine_id
         if self.machine_id == '':
             self.machine_id = data['machine_id']
@@ -245,7 +245,7 @@ class controller(object):
                 logging.info("总体任务 %s，完成任务 %s，运行任务 %s" % (self.count_all_job,
                     self.count_done_job, self.count_process))
                 self.get_job()
-                time.sleep(1)
+                time.sleep(0.1)
             else:
                 # 任务满载
                 time.sleep(30)
