@@ -228,7 +228,7 @@ class controller(object):
     # 8. 更新config信息
     def update_config(self):
         w = open('config.json', 'w')
-        w.write(json.dumps(self.all_config))
+        w.write(json.dumps(self.all_config, indent=2, ensure_ascii=False))
         w.close()
 
     def work(self):

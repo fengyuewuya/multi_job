@@ -396,7 +396,11 @@ def get_job_statistics():
 # 获取job的summary
 @app.route('/get_job_summary')
 def get_job_summary():
-    mysql_0 = "select a.job_type, a.batch, a.tag, sum(a.return_count * (case when a.status = 3 then 1 else 0 end)) as count, avg(a.spend_time * (case when a.status = 3 then 1 else 0 end)) as spend_time, sum(case when a.status = 0 then 1 else 0 end) as waiting_task, sum(case when a.status = 1 then 1 else 0 end) as working_task, sum(case when a.status = 3 then 1 else 0 end) as finished_task, sum(case when a.status = -1 then 1 else 0 end) as failed_task, min(a.create_time) as begin_time, max(a.update_time) as update_time from jobs a group by a.job_type, a.batch"
+    job_type = request.args.get('job_type')
+    mysql_1 = ''
+    if job_type:
+        mysql_1 = " where job_type = '%s' " % job_type
+    mysql_0 = "select a.job_type, a.batch, a.tag, sum(a.return_count * (case when a.status = 3 then 1 else 0 end)) as count, avg(a.spend_time * (case when a.status = 3 then 1 else 0 end)) as spend_time, sum(case when a.status = 0 then 1 else 0 end) as waiting_task, sum(case when a.status = 1 then 1 else 0 end) as working_task, sum(case when a.status = 3 then 1 else 0 end) as finished_task, sum(case when a.status = -1 then 1 else 0 end) as failed_task, min(a.create_time) as begin_time, max(a.update_time) as update_time from jobs a %s group by a.job_type, a.batch" % mysql_1
     res = db.session.execute(mysql_0)
     data = convert_rowproxy_to_dict(res.fetchall())
     return jsonify(code=200, data=data)
