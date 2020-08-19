@@ -359,6 +359,10 @@ def get_job():
     if data is None:
         return jsonify(code=302, status=0, message='No Job', data='')
     data = data.to_json()
+    try:
+        data['input_data'] = eval(data['input_data'])
+    except:
+        pass
     # 对该id的任务便跟状态为2
     Jobs.query.filter_by(id=data['id']).update({'status':1})
     db.session.commit()
