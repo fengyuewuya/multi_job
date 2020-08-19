@@ -333,6 +333,11 @@ def update_job():
     # 进行回调操作
     if status == 2:
         if return_data != '' :
+            try:
+                return_data = eval(return_data)
+                data['return_data'] = return_data
+            except:
+                pass
             p = Process(target=operate_return_data, args=(data, ))
             p.dameon = False
             p.start()
