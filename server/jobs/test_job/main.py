@@ -2,8 +2,9 @@
 import requests
 import work_test
 def work(data):
-    result = work_test.work(data["input_data"])
-    count = len(result.keys())
+    data = data
+    result = work_test.work(eval(data["input_data"]))
+    count = 1
     return {'count':count, 'result':result['seed'], 'return_data':result}
 
 if __name__ == "__main__":

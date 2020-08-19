@@ -2,6 +2,7 @@
 import requests
 import pymysql
 def work(data):
+    return 1
     conn = pymysql.connect(host='localhost', user='root', password='', db='')
     cursor = conn.cursor()
     # 更新下表
