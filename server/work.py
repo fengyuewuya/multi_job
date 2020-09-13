@@ -12,6 +12,11 @@ from multiprocess import Process, Queue
 import logging, logging.handlers, logging.config
 import uuid
 import decimal
+# 改变全局的路径
+base_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(base_dir)
+
+# server flask服务运行的主程序
 def main():
     all_config = json.load(open("./config.json"))
     host = all_config["host"]
@@ -19,13 +24,10 @@ def main():
     debug = all_config["debug"]
     app.run(host=host, port=port, debug=debug, threaded=True)
 
-# 全局一些变量
-global host, port, base_dir
-base_dir = os.path.dirname(os.path.abspath(__file__))
-os.chdir(base_dir)
 # 0. 读取相关配置文件
 log_config = json.load(open("./log_config.json"))
 all_config = json.load(open("./config.json"))
+port = all_config['port']
 
 # 0.1 读取logger 配置
 logging.config.dictConfig(log_config)
@@ -34,18 +36,20 @@ logging.config.dictConfig(log_config)
 app = Flask(__name__)
 
 # 0.2.1 设置数据库相关参数
-app.config['SQLALCHEMY_DATABASE_URI'] = all_config['db']
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# 让返回的json结果显示中文
-app.config['JSON_AS_ASCII'] = False
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False                          # 是否显示mysql配置
+app.config['SQLALCHEMY_DATABASE_URI'] = all_config['db']                      # 数据库的连接配置
+app.config['SQLALCHEMY_POOL_SIZE'] = all_config['SQLALCHEMY_POOL_SIZE']       # 数据库连接的数量
+app.config['SQLALCHEMY_MAX_OVERFLOW'] = all_config['SQLALCHEMY_MAX_OVERFLOW'] # 配置数据库超负载的链接数 -1表示不限制。如果是int的话，可能会触发爆内存bug
+app.config['JSON_AS_ASCII'] = False                                           # 让返回的json结果显示中文
 db = SQLAlchemy(app)
 
-# 0.2.2 初始化Jobs参数
+# 0.2.2 初始化Jobs表的相关参数
 class Jobs(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     job_type = db.Column(db.Text)
+    priority = db.Column(db.Integer, default=0)
     input_data = db.Column(db.Text)
-    params = db.Column(db.Text)
+    machine_id = db.Column(db.String(64))
     limit_count = db.Column(db.Integer, default=1)
     tag = db.Column(db.Text)
     status = db.Column(db.Integer, default=0)
@@ -56,16 +60,16 @@ class Jobs(db.Model):
     update_time = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
     create_time = db.Column(db.DateTime, default=datetime.datetime.now)
 
-    def __init__(self, job_type, input_data, params, limit_count=1, tag='', status=1, return_count=1, result='', spend_time=0, batch=''):
+    def __init__(self, job_type, input_data, limit_count=1, tag='', status=1, return_count=1, result='', spend_time=0, batch='', priority=0):
         self.job_type = job_type
         self.input_data = input_data
-        self.params = params
         self.limit_count = limit_count
         self.tag = tag
         self.status = status
         self.return_count = return_count
         self.result = result
         self.spend_time = spend_time
+        self.priority = priority
         if batch == '':
             batch = time.strftime("%Y-%m-%d", time.localtime())
         self.batch = batch
@@ -106,9 +110,10 @@ class Job_file(db.Model):
                 dic_0[k] = v.strftime("%Y-%m-%d %H:%M:%S")
         return dic_0
 
-# 0.2.2 初始化Jobs参数
+# 0.2.2 初始化 machine 表的参数
 class Machine(db.Model):
     machine_id = db.Column(db.String(128), primary_key=True)
+    platform = db.Column(db.String(128))
     name = db.Column(db.Text)
     tag = db.Column(db.Text)
     count_process = db.Column(db.Integer, default=0)
@@ -122,7 +127,7 @@ class Machine(db.Model):
     status = db.Column(db.Integer, default=0)
     update_time = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
     create_time = db.Column(db.DateTime, default=datetime.datetime.now)
-    def __init__(self, machine_id, name, tag, count_process, limit_process, cpu_ratio, cpu_core, memory_used, memory_free, disk_free, disk_used, status):
+    def __init__(self, machine_id, name, tag, count_process, limit_process, cpu_ratio, cpu_core, memory_used, memory_free, disk_free, disk_used, status, platform):
         self.machine_id = machine_id
         self.name = name
         self.tag = tag
@@ -135,6 +140,7 @@ class Machine(db.Model):
         self.disk_free = disk_free
         self.disk_used = disk_used
         self.status = status
+        self.platform = platform
 
     def __repr__(self):
         return '<machine_id %r>' % self.machine_id
@@ -148,8 +154,12 @@ class Machine(db.Model):
                 dic_0[k] = v.strftime("%Y-%m-%d %H:%M:%S")
         return dic_0
 
+# 0.2.3 进行表格创建
+db.create_all()
+
+# 0.2.4 设置一些常用函数
+# 将fetchall 返回的list 转换为 json list
 def convert_rowproxy_to_dict(data):
-    # 将fetchall 返回的list 转换为 json list
     return_data = []
     for line in data:
         tmp_dict = {}
@@ -165,16 +175,7 @@ def convert_rowproxy_to_dict(data):
         return_data.append(tmp_dict)
     return return_data
 
-# 0.2.3 进行表格创建
-db.create_all()
-
-# 0.3 设置flask
-# 0.3.1 运行状态等信息
-host = all_config["host"]
-port = all_config["port"]
-debug = all_config["debug"]
-base_dir = os.path.dirname(os.path.abspath(__file__))
-# 0.3.2 设置flask函数
+# 对 return_data 进行处理
 def operate_return_data(data):
     import os
     import sys
@@ -201,6 +202,7 @@ def operate_return_data(data):
     result['return_data'] = ''
     res = requests.post(url=url, headers=headers, data=json.dumps(result))
 
+# 压缩 job 文件
 def zip_job_file(job_type):
     # 将附件打包成zip
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -215,6 +217,8 @@ def zip_job_file(job_type):
     #memory_file.seek(0)
     return zip_file_name
 
+# 0.3 设置flask
+# 0.3.1 设置flask函数
 @app.route('/')
 def hello_world():
     return 'Hello, World!'
@@ -236,12 +240,12 @@ def insert_job():
     if len(str(job_type)) <= 1:
         return jsonify(code=300, status=0, message='failed', data='job_type not found')
     input_data = str(data.get('input_data', ''))
-    params = data.get('params', '')
-    limit_count = data.get('limit_count', 1)
+    limit_count = data.get('limit_count', 0)
     batch = data.get('batch', '')
     tag = data.get('tag', '')
+    priority = data.get('priority', 0)
     status = 0
-    new_job = Jobs(job_type, input_data, params, limit_count, status=status, tag=tag, batch=batch)
+    new_job = Jobs(job_type, input_data, limit_count, status=status, tag=tag, batch=batch, priority=priority)
     db.session.add(new_job)
     db.session.commit()
     logging.info("insert a job of %s" % job_type)
@@ -297,6 +301,7 @@ def get_job_file():
                      attachment_filename=job_file_name,
                      mimetype='application/zip')
 
+# 下载job相关的文件
 @app.route('/get_data')
 def get_data():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -322,14 +327,18 @@ def get_data():
 def update_job():
     data = json.loads(request.data)
     job_id = data.get('id')
-    status = data.get('status', -1)
+    status = data.get('status')
+    # 判断 job_id 和 status 是否存在
+    if not job_id or not status:
+        return jsonify(code=300, status=-1, message='failed', data={})
+    tmp_job = Jobs.query.filter_by(id=job_id).first()
+    if not tmp_job:
+        return jsonify(code=300, status=-1, message='failed', data={})
     return_count = data.get('count', 0 if status < 0 else 1)
     result = str(data.get('result', ''))
     #result = str({'result':result})
     spend_time = data.get('spend_time', -1)
     return_data = data.get('return_data', '')
-    if not job_id:
-        return jsonify(code=300, status=-1, message='failed', data={})
     # 进行回调操作
     if status == 2:
         if return_data != '' :
@@ -343,35 +352,91 @@ def update_job():
             p.start()
         else:
             status = 3
-    #Jobs.query.filter(Jobs.id==job_id).update({'status':status, 'return_count':return_count, 'result':result, 'spend_time':spend_time})
-    Jobs.query.filter_by(id=job_id).update({'status':status, 'return_count':return_count, 'result':result, 'spend_time':spend_time})
     if status == -1:
         logging.error(result)
+    # 任务失败的话 如果limit_count > 0 说明有重跑的机会, 进行重跑
+    # 没有重跑机会 就更新数据库相关结果
+    if int(status) < 0 and tmp_job.limit_count > 0:
+        tmp_job.status = 0
+        tmp_job.limit_count -= 1
+    else:
+        res = Jobs.query.filter_by(id=job_id).update({'status':status, 'return_count':return_count, 'result':result, 'spend_time':spend_time})
     db.session.commit()
     logging.info("update job status of %s" % (job_id))
     return jsonify(code=200, status=status, message='ok', data={})
 
-# machine 获取特定job
+# machine 获取特定job, 并且获取是否需要进行额外处理的任务 如停止正在进行的任务 status_id = -3
 @app.route('/get_job')
 def get_job():
     job_type = request.args.get('job_type')
     tag = request.cookies.get('tag', '')
+    machine_id = request.cookies.get('machine_id', '')
+    if not machine_id:
+        return jsonify(code=301, status=0, message='No Machine', data='')
+    # 后期可以批量多任务
     query_0 = Jobs.query.filter(Jobs.status==0).filter(or_(Jobs.tag == '', Jobs.tag.in_(tag.replace(' ', '').split(','))))
     # 如果存在特定的job_type，就筛选特定的job_type
     if job_type:
         query_0 = query_0.filter(job_type=job_type)
-    data = query_0.order_by('create_time').first()
-    if data is None:
-        return jsonify(code=302, status=0, message='No Job', data='')
-    data = data.to_json()
-    try:
-        data['input_data'] = eval(data['input_data'])
-    except:
-        pass
-    # 对该id的任务便跟状态为2
-    Jobs.query.filter_by(id=data['id']).update({'status':1})
+    # 获取最新的任务
+    data = query_0.order_by(Jobs.priority.desc(), Jobs.create_time).first()
+    if data:
+        data = data.to_json()
+        try:
+            data['input_data'] = eval(data['input_data'])
+        except:
+            pass
+        # 对该id的任务便更新状态为2
+        Jobs.query.filter_by(id=data['id']).update({'status':1, 'machine_id':machine_id})
+        db.session.commit()
+    else:
+        data = {}
+    # 获取需要进行的任务操作
+    operation_id = []
+    for tmp_job in Jobs.query.filter_by(status=-3).filter_by(machine_id=machine_id).all():
+        operation_id.append(tmp_job.id)
+    return jsonify(code=200, message='ok', data=data, operation_id=operation_id)
+
+# 重跑任务
+@app.route('/rerun_job', methods=['POST'])
+def rerun_job():
+    data = json.loads(request.data)
+    job_id = data.get('job_id')
+    data = Jobs.query.filter(Jobs.status!=0).filter(Jobs.id.in_(job_id)).update({'status':0, 'machine_id':''}, synchronize_session=False)
     db.session.commit()
-    return jsonify(code=200, status=1, message='ok', data=data)
+    return jsonify(data=data)
+
+# 删除任务
+@app.route('/delete_job', methods=['POST'])
+def delete_job():
+    data = json.loads(request.data)
+    job_id = data.get('job_id')
+    data = Jobs.query.filter(Jobs.status!=1).filter(Jobs.id.in_(job_id)).delete(synchronize_session=False)
+    db.session.commit()
+    return jsonify(data=data)
+
+# 停止任务
+@app.route('/kill_job', methods=['POST'])
+def kill_job():
+    data = json.loads(request.data)
+    job_id = data.get('job_id')
+    data = Jobs.query.filter(Jobs.status==1).filter(Jobs.id.in_(job_id)).update({'status':-3}, synchronize_session=False)
+    db.session.commit()
+    return jsonify(data=data)
+
+# 复制任务
+@app.route('/copy_job', methods=['POST'])
+def copy_job():
+    data = json.loads(request.data)
+    job_id = data.get('job_id')
+    data = Jobs.query.filter(Jobs.id.in_(job_id)).all()
+    count = len(data)
+    for line in data:
+        new_job = Jobs(line.job_type, line.input_data, line.limit_count, status=0, tag=line.tag, batch=line.batch, priority=line.priority)
+        db.session.add(new_job)
+    db.session.commit()
+    return jsonify(status=200, data=count)
+    #return jsonify(data=str(data[0]))
 
 # 随便获取一个job
 @app.route('/get_job_info')
@@ -442,9 +507,10 @@ def append_machine():
     disk_free = data.get('disk_free', -1)
     disk_used = data.get('disk_used', -1)
     status = data.get('status', 1)
+    platform = data.get('platform', '')
     new_machine = Machine(machine_id, name, tag, count_process, limit_process,
             cpu_ratio, cpu_core, memory_used, memory_free, disk_free,
-            disk_used, status)
+            disk_used, status, platform)
     # merge 如果存在就更新数据 ，不存在的话就插入新的数据
     db.session.merge(new_machine)
     db.session.commit()
@@ -453,7 +519,7 @@ def append_machine():
 # 增加machine信息
 @app.route('/get_machine_info', )
 def get_machine_info():
-    res = db.session.execute("select *  from machine")
+    res = db.session.execute("select *  from machine where update_time > (now() - interval 10 minute)")
     data = convert_rowproxy_to_dict(res.fetchall())
     return jsonify(code=200, data=data)
 if __name__ == '__main__':
