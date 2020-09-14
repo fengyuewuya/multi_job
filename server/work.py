@@ -12,6 +12,8 @@ from multiprocess import Process, Queue
 import logging, logging.handlers, logging.config
 import uuid
 import decimal
+import sqlalchemy
+from werkzeug.utils import secure_filename
 # 改变全局的路径
 base_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(base_dir)
@@ -163,15 +165,18 @@ def convert_rowproxy_to_dict(data):
     return_data = []
     for line in data:
         tmp_dict = {}
-        all_keys = line.keys()
-        for i in range(len(all_keys)):
-            k = all_keys[i]
-            v = line[i]
-            if isinstance(v, decimal.Decimal):  # for decimal
-                v = float(v)
-            if isinstance(v, datetime.datetime):  # for datetime
-                v = v.strftime("%Y-%m-%d %H:%M:%S")
-            tmp_dict[k] = v
+        if isinstance(line, sqlalchemy.engine.result.RowProxy):
+            all_keys = line.keys()
+            for i in range(len(all_keys)):
+                k = all_keys[i]
+                v = line[i]
+                if isinstance(v, decimal.Decimal):  # for decimal
+                    v = float(v)
+                if isinstance(v, datetime.datetime):  # for datetime
+                    v = v.strftime("%Y-%m-%d %H:%M:%S")
+                tmp_dict[k] = v
+        else:
+            tmp_dict = line.to_json()
         return_data.append(tmp_dict)
     return return_data
 
@@ -452,6 +457,25 @@ def get_job_info():
     data = data.to_json()
     return jsonify(code=200, status=1, message='ok', data=data)
 
+# 获取任务的列表信息
+@app.route('/get_job_list')
+def get_job_list():
+    job_type = request.args.get('job_type')
+    batch = request.args.get('batch')
+    offset_num = request.args.get('offset', 0)
+    limit_num = request.args.get('limit', 100)
+    query_0 = Jobs.query
+    # 如果存在特定的job_type，就筛选特定的job_type
+    if job_type:
+        query_0 = query_0.filter_by(job_type=job_type)
+    if batch:
+        query_0 = query_0.filter_by(batch=batch)
+    data = query_0.limit(limit_num).offset(offset_num).all()
+    if data is None:
+        return jsonify(code=302, status=0, message='No Job', data='')
+    data = convert_rowproxy_to_dict(data)
+    return jsonify(code=200, status=1, message='ok', data=data)
+
 # 获取job的完成统计情况
 @app.route('/get_job_statistics')
 def get_job_statistics():
@@ -470,19 +494,31 @@ def get_job_statistics():
 # 获取job的summary
 @app.route('/get_job_summary')
 def get_job_summary():
+    # 从任务的类型 、 batch等维度统计任务计算情况
     job_type = request.args.get('job_type')
+    batch = request.args.get('batch')
     mysql_1 = ''
     if job_type:
         mysql_1 = " where job_type = '%s' " % job_type
-    mysql_0 = "select a.job_type, a.batch, a.tag, sum(a.return_count * (case when a.status = 3 then 1 else 0 end)) as count, avg(a.spend_time * (case when a.status = 3 then 1 else 0 end)) as spend_time, sum(case when a.status = 0 then 1 else 0 end) as waiting_task, sum(case when a.status = 1 then 1 else 0 end) as working_task, sum(case when a.status = 3 then 1 else 0 end) as finished_task, sum(case when a.status = -1 then 1 else 0 end) as failed_task, min(a.create_time) as begin_time, max(a.update_time) as update_time from jobs a %s group by a.job_type, a.batch" % mysql_1
+    if batch != "-1" and batch != None:
+        mysql_1 += " and batch = '%s'" % batch
+    mysql_0 = "select a.job_type, a.batch, a.tag, sum(a.return_count * (case when a.status = 3 then 1 else 0 end)) as count, avg(a.spend_time * (case when a.status = 3 then 1 else 0 end)) as spend_time, sum(case when a.status = 0 then 1 else 0 end) as waiting_task, sum(case when a.status = 1 then 1 else 0 end) as working_task, sum(case when a.status = 3 then 1 else 0 end) as finished_task, sum(case when a.status = -1 then 1 else 0 end) as failed_task, min(a.create_time) as begin_time, max(a.update_time) as update_time from jobs a %s group by a.job_type" % mysql_1
+    # 如果 batch == -1 表示不需要batch进行分类统计功能, 否则就需要
+    # 不等于 -1, 就增加batch级别的group by
+    if batch != "-1":
+        mysql_0 += ", batch"
     res = db.session.execute(mysql_0)
-    data = convert_rowproxy_to_dict(res.fetchall())
+    tmp = res.fetchall()
+    #data = convert_rowproxy_to_dict(res.fetchall())
+    data = convert_rowproxy_to_dict(tmp)
     return jsonify(code=200, data=data)
 
 # 获取job的完成详情
 @app.route('/get_job_details')
 def get_job_details():
-    #res = db.session.execute("select job_type, status, count(1) as job_count from jobs group by job_type, status")
+    job_id = request.args.get('job_id')
+    if not job_id:
+        return jsonify(code=301, data={})
     res = db.session.execute("select  *,strftime('%s', update_time) - strftime('%s', create_time) as spend_time from jobs where status > 1")
     data = convert_rowproxy_to_dict(res.fetchall())
     return jsonify(code=200, data=data)
@@ -522,5 +558,16 @@ def get_machine_info():
     res = db.session.execute("select *  from machine where update_time > (now() - interval 10 minute)")
     data = convert_rowproxy_to_dict(res.fetchall())
     return jsonify(code=200, data=data)
+
+# 上传文件
+@app.route('/upload_file', methods=['POST'])
+def upload_file():
+    tmp_file = request.files['file']
+    if tmp_file and allowed_file(tmp_file.filename):
+        filename = secure_filename(tmp_file.filename)
+        tmp_file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    return jsonify(code=200, data="success")
+
+
 if __name__ == '__main__':
     main()

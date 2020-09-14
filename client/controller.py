@@ -51,17 +51,44 @@ class controller(object):
     def __init__(self, config = "./config.json"):
         logging.info("开始初始化")
         self.config = config
+        self.cookies = {}
+        self.platform = self.get_platform()
         # 初始化 运行参数
         self.get_config()
         # 记录运行情况
         self.count_process = 0
         self.count_done_job = 0
         self.count_all_job = 0
+        self.job_process = {}
         # 记录网络参数
         self.headers = {'Content-Type': 'application/json'}
         self.cookies = {"machine_id":self.machine_id, "tag":self.tag}
 
-    # 获取 config 信息
+    def get_url(self, url, **kwargs):
+        # 封装的requests, get, 防止请求失败 导致程序挂
+        url = self.base_url + url
+        for i in range(5):
+            time.sleep(0.1)
+            try:
+                res = requests.get(url, params=kwargs, cookies=self.cookies, timeout=3)
+                return res.json()
+            except Exception as e:
+                logging.error("get url %s error: %s" % (url, str(e)))
+        return {}
+
+    def post_url(self, url, json_data):
+       # 封装的requests, post, 防止请求失败 导致程序挂
+        url = self.base_url + url
+        for i in range(5):
+            time.sleep(0.1)
+            try:
+                res = requests.post(url, json=json_data, headers=self.headers, cookies=self.cookies, timeout=3)
+                return res.json()
+            except Exception as e:
+                logging.error("post url %s error: %s" % (url, str(e)))
+        return {}
+
+   # 获取 config 信息
     def get_config(self):
         all_config = json.loads(open(self.config).read())
         self.all_config = all_config
@@ -71,15 +98,26 @@ class controller(object):
         self.base_url = all_config['host'].strip('/') + ":%s" % all_config['port'] + '/'
         self.limit_process = all_config['limit_process']
 
-    # 获取一个job
+    # 获取一个job, 并获取需要进行处理的任务
     def get_job(self):
-        try:
-            data_all = requests.get(self.base_url + 'get_job', cookies=self.cookies, timeout=3).json()
-        except Exception as e:
-            logging.error(('获取任务失败', e))
-            return 1
-        data = data_all['data']
-        if data_all['status'] == 1:
+        data_all = self.get_url(url='get_job', timeout=3)
+        if not data_all or 'data' not in data_all:
+            logging.error(('获取任务失败'))
+            return -1
+        data = data_all.get('data', {})
+        operation_id = data_all.get('operation_id', [])
+        # 对任务进行操作
+        if operation_id:
+            for tmp_id in operation_id:
+                if  tmp_id in self.job_process:
+                    self.job_process[tmp_id].kill()
+                    self.job_process.pop(tmp_id)
+                    self.count_process -= 1
+                    logging.info("关闭了一个任务 %s" % tmp_id)
+                tmp_data = {"id":tmp_id, "status":-4}
+                self.upload_data(tmp_data)
+        # 开启新的任务
+        if data:
             logging.info("开启了 %s 的任务" % data['job_type'])
             if self.check_job_file(job_type=data['job_type']) == 0:
                 self.get_job_file(job_type=data['job_type'])
@@ -94,18 +132,13 @@ class controller(object):
         if not os.path.exists("jobs/" + job_type):
             return 0
         version = json.loads(open("jobs/" + job_type + '/.info').read()).get('version', -1)
-        check_job_file_url = self.base_url + 'check_job_file_status?job_type=' + job_type
-        check_job_file_url = check_job_file_url + '&version=' + str(version)
-        flag = 0
-        for i in range(5):
-            try:
-                result = requests.get(check_job_file_url, timeout=3).json()
-                flag = 1
-                break
-            except Exception as e:
-                logging.error(('check_job_file', i, e))
-        if flag == 0:
-            return 0
+        #check_job_file_url = self.base_url + 'check_job_file_status?job_type=' + job_type
+        #check_job_file_url = check_job_file_url + '&version=' + str(version)
+        params = {"job_type":job_type, "version":str(version)}
+        result = self.get_url(url='check_job_file_status', params=params)
+        if not result or 'status' not in result:
+                logging.error('check_job_file failed')
+                return 0
         # status 为 1文件需要更新， -2 文件不存在 ，0 文件不需要更新
         if result['status'] == 0:
             return 1
@@ -116,9 +149,15 @@ class controller(object):
         logging.info("获取的程序文件 %s" % job_type)
         file_name = 'jobs/' + job_type + '.zip'
         data_url = self.base_url + 'get_job_file?job_type=' + job_type
-        res = requests.get(data_url)
-        with open(file_name, "wb") as code:
-            code.write(res.content)
+        # 尝试下载5次文件，不成功的话 开启任务也会报错 输出报错日志
+        for i in range(5):
+            try:
+                res = requests.get(data_url)
+                with open(file_name, "wb") as code:
+                    code.write(res.content)
+                return 0
+            except Exception as e:
+                logging.error("下载任务文件失败 %s" % str(e))
 
     # 解压zip文件
     def unzip_file(self, job_type):
@@ -139,37 +178,41 @@ class controller(object):
         # 更新下参数信息
         self.get_config()
         # 注册服务器，并上传服务器的各种信息, 获取uuid
-        url = self.base_url + 'append_machine'
-        tmp_data = {'machine_id': self.machine_id, "tag": self.tag, "limit_process": self.limit_process, "name": self.name, "count_process": self.count_process, "status":1}
+        url = 'append_machine'
+        tmp_data = {'machine_id': self.machine_id,
+                "tag": self.tag,
+                "name": self.name,
+                "status":1,
+                "platform":self.platform,
+                "limit_process": self.limit_process,
+                "count_process": self.count_process}
         machine_info = self.get_machine_info()
         for k, v in machine_info.items():
             tmp_data[k] = v
+        data = self.post_url(url=url, json_data=tmp_data)
+        if not data or 'data' not in data:
+            return -1
+        data = data['data']
         flag = 0
-        # 限制5次请求
-        for i in range(5):
-            time.sleep(0.1)
-            try:
-                res = requests.post(url=url, data=json.dumps(tmp_data), headers=self.headers, cookies=self.cookies, timeout=3)
-                flag = 1
-                data = res.json()['data']
-                break
-            except Exception as e:
-                logging.error(("上传机器信息错误", e))
-        if flag == 0:
-            return 0
         # 更新 machine_id
         if self.machine_id == '':
             self.machine_id = data['machine_id']
             self.all_config['machine_id'] = self.machine_id
             self.cookies['machine_id'] = self.machine_id
+            flag = 1
         # 更新 limit_count
-        self.limit_process = data['limit_process']
-        self.all_config['limit_process'] = self.limit_process
+        if self.limit_process != data['limit_process']:
+            self.limit_process = data['limit_process']
+            self.all_config['limit_process'] = self.limit_process
+            flag = 1
         # 更新 tag
-        self.tag = data['tag']
-        self.all_config['tag'] = self.tag
-        # 更新任务
-        self.update_config()
+        if self.tag != data['tag']:
+            self.tag = data['tag']
+            self.all_config['tag'] = self.tag
+            flag = 1
+        # 更新config 信息
+        if flag == 1:
+            self.update_config()
         return 1
 
     # 3. 获取服务器的运行状态
@@ -193,6 +236,7 @@ class controller(object):
         p = Process(target=append_process, args=(data, queue_0))
         p.dameon = False
         p.start()
+        self.job_process[data['id']] = p
 
     # 6. 获取任务结果, 并上传
     def get_result(self):
@@ -201,6 +245,8 @@ class controller(object):
             self.count_done_job += 1
             self.count_process -= 1
             data = queue_0.get()
+            if data['id'] in self.job_process:
+                self.job_process.pop(data['id'])
             # 如果状态是-1， 表明存在错误
             if data['status'] == -1:
                 logging.error(data)
@@ -212,18 +258,12 @@ class controller(object):
 
     # 7. 上传结果
     def upload_data(self, data):
-        url = self.base_url + 'update_job'
-        flag = 0
-        for i in range(5):
-            time.sleep(0.1)
-            try:
-                res = requests.post(url=url, data=json.dumps(data), headers=self.headers, cookies=self.cookies, timeout=3)
-                flag = 1
-                logging.info("上传数据成功 job_id %s " % data['id'])
-                break
-            except Exception as e:
-                logging.error(('上传数据失败 job_id %s ' % data['id'], flag, data))
-        return flag
+        res = self.post_url(url='update_job', json_data=data)
+        if not res:
+                logging.error('上传数据失败 job_id %s' % data['id'])
+                return -1
+        logging.info("上传数据成功 job_id %s " % data['id'])
+        return data
 
     # 8. 更新config信息
     def update_config(self):
@@ -231,6 +271,7 @@ class controller(object):
         w.write(json.dumps(self.all_config, indent=2, ensure_ascii=False))
         w.close()
 
+    # 这是运行的主程序
     def work(self):
         self.append_machine()
         while True:
@@ -250,20 +291,8 @@ class controller(object):
                 # 任务满载
                 time.sleep(30)
 
-
-    # 分配任务 多进程执行
-    def assign_job(self, data):
-        job_type = data['job_type']
-        if str(job_type) == '0':
-            logging.info("开始爬虫任务")
-            p = Process(target=crawl_data.get_stock_data_from_sina, args=(data,))
-            p.start()
-        if str(job_type) == 'qq':
-            p = Process(target=crawl_data.get_data_from_qq, args=(data,))
-            p.start()
-
+    # 退出work
     def exit_work(self):
-        # 退出work
         if os.path.exists("End"):
             logging.info("退出了work")
             os.remove('./End')
@@ -271,8 +300,8 @@ class controller(object):
         else:
             return False
 
+    # 暂停work
     def pause_work(self):
-        # 暂停work
         if os.path.exists("Pause"):
             logging.info("暂停 work 30秒")
             time.sleep(30)
@@ -280,9 +309,20 @@ class controller(object):
         else:
             return False
 
+    # 检测是否可以post
     def test_post(self):
         res = requests.post('http://httpbin.org/post', data=json.dumps({"a":1}), headers=self.headers, cookies=self.cookies)
-        print(res.json())
+
+    # 检测 平台
+    def get_platform(self):
+        platform = ''
+        if sys.platform.startswith("win"):
+            platform = 'win'
+        if sys.platform.startswith("dar"):
+            platform = 'mac'
+        if sys.platform.startswith('linux') or sys.platform.startswith('free'):
+            platform = 'linux'
+        return platform
 if __name__ == '__main__':
     tmp = controller()
     #print(tmp.get_machine_info())
