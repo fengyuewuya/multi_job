@@ -229,6 +229,11 @@ def zip_job_file(job_type):
 def hello_world():
     return 'Hello, World!'
 
+ # 首页
+@app.route('/home')
+def home():
+    return send_file("index.html")
+
 # 获取所有的jobs
 @app.route('/get_all_job')
 def get_all_job():
