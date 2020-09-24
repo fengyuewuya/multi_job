@@ -40,8 +40,9 @@ app = Flask(__name__)
 # 0.2.1 设置数据库相关参数
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False                          # 是否显示mysql配置
 app.config['SQLALCHEMY_DATABASE_URI'] = all_config['db']                      # 数据库的连接配置
-app.config['SQLALCHEMY_POOL_SIZE'] = all_config['SQLALCHEMY_POOL_SIZE']       # 数据库连接的数量
-app.config['SQLALCHEMY_MAX_OVERFLOW'] = all_config['SQLALCHEMY_MAX_OVERFLOW'] # 配置数据库超负载的链接数 -1表示不限制。如果是int的话，可能会触发爆内存bug
+if 'mysql' in all_config['db']:
+    app.config['SQLALCHEMY_POOL_SIZE'] = all_config.get('SQLALCHEMY_POOL_SIZE', 100)  # 数据库连接的数量
+    app.config['SQLALCHEMY_MAX_OVERFLOW'] = all_config.get('SQLALCHEMY_MAX_OVERFLOW', -1) # 配置数据库超负载的链接数 -1表示不限制。如果是int的话，可能会触发爆内存bug
 app.config['JSON_AS_ASCII'] = False                                           # 让返回的json结果显示中文
 db = SQLAlchemy(app)
 
@@ -409,7 +410,7 @@ def rerun_job():
     job_id = data.get('job_id')
     data = Jobs.query.filter(Jobs.status!=0).filter(Jobs.id.in_(job_id)).update({'status':0, 'machine_id':''}, synchronize_session=False)
     db.session.commit()
-    return jsonify(data=data)
+    return jsonify(status=200, data={})
 
 # 删除任务
 @app.route('/delete_job', methods=['POST'])
@@ -418,7 +419,7 @@ def delete_job():
     job_id = data.get('job_id')
     data = Jobs.query.filter(Jobs.status!=1).filter(Jobs.id.in_(job_id)).delete(synchronize_session=False)
     db.session.commit()
-    return jsonify(data=data)
+    return jsonify(status=200, data={})
 
 # 停止任务
 @app.route('/kill_job', methods=['POST'])
@@ -427,7 +428,7 @@ def kill_job():
     job_id = data.get('job_id')
     data = Jobs.query.filter(Jobs.status==1).filter(Jobs.id.in_(job_id)).update({'status':-3}, synchronize_session=False)
     db.session.commit()
-    return jsonify(data=data)
+    return jsonify(status=200, data={})
 
 # 复制任务
 @app.route('/copy_job', methods=['POST'])
@@ -440,8 +441,7 @@ def copy_job():
         new_job = Jobs(line.job_type, line.input_data, line.limit_count, status=0, tag=line.tag, batch=line.batch, priority=line.priority)
         db.session.add(new_job)
     db.session.commit()
-    return jsonify(status=200, data=count)
-    #return jsonify(data=str(data[0]))
+    return jsonify(status=200, data={})
 
 # 随便获取一个job
 @app.route('/get_job_info')
@@ -463,7 +463,7 @@ def get_job_list():
     job_type = request.args.get('job_type')
     batch = request.args.get('batch')
     offset_num = request.args.get('offset', 0)
-    limit_num = request.args.get('limit', 100)
+    limit_num = request.args.get('limit', 20)
     query_0 = Jobs.query
     # 如果存在特定的job_type，就筛选特定的job_type
     if job_type:
@@ -513,14 +513,16 @@ def get_job_summary():
     data = convert_rowproxy_to_dict(tmp)
     return jsonify(code=200, data=data)
 
-# 获取job的完成详情
+# 获取job完成详情
 @app.route('/get_job_details')
 def get_job_details():
     job_id = request.args.get('job_id')
     if not job_id:
         return jsonify(code=301, data={})
-    res = db.session.execute("select  *,strftime('%s', update_time) - strftime('%s', create_time) as spend_time from jobs where status > 1")
+    res = db.session.execute("select  * from jobs where id = %s" % job_id)
     data = convert_rowproxy_to_dict(res.fetchall())
+    if data:
+        data = data[0]
     return jsonify(code=200, data=data)
 
 # 增加machine信息
@@ -555,7 +557,9 @@ def append_machine():
 # 增加machine信息
 @app.route('/get_machine_info', )
 def get_machine_info():
-    res = db.session.execute("select *  from machine where update_time > (now() - interval 10 minute)")
+    begin_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() - 10 * 60))
+    #res = db.session.execute("select *  from machine where update_time > (now() - interval 10 minute)")
+    res = db.session.execute("select *  from machine where update_time > '%s' " % begin_time)
     data = convert_rowproxy_to_dict(res.fetchall())
     return jsonify(code=200, data=data)
 
