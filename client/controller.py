@@ -53,6 +53,8 @@ class controller(object):
         self.config = config
         self.cookies = {}
         self.platform = self.get_platform()
+        # status = 1 表示正在运行 0 暂停 -1 关机
+        self.status = 1
         # 初始化 运行参数
         self.get_config()
         # 记录运行情况
@@ -68,7 +70,7 @@ class controller(object):
         # 封装的requests, get, 防止请求失败 导致程序挂
         url = self.base_url + url
         for i in range(5):
-            time.sleep(0.1)
+            time.sleep(i * i + 0.01)
             try:
                 res = requests.get(url, params=kwargs, cookies=self.cookies, timeout=3)
                 return res.json()
@@ -80,7 +82,7 @@ class controller(object):
        # 封装的requests, post, 防止请求失败 导致程序挂
         url = self.base_url + url
         for i in range(5):
-            time.sleep(0.1)
+            time.sleep(i * i + 0.01)
             try:
                 res = requests.post(url, json=json_data, headers=self.headers, cookies=self.cookies, timeout=3)
                 return res.json()
@@ -114,7 +116,7 @@ class controller(object):
                     self.job_process.pop(tmp_id)
                     self.count_process -= 1
                     logging.info("关闭了一个任务 %s" % tmp_id)
-                tmp_data = {"id":tmp_id, "status":-4}
+                tmp_data = {"id":tmp_id, "status":-1}
                 self.upload_data(tmp_data)
         # 开启新的任务
         if data:
@@ -182,17 +184,20 @@ class controller(object):
         tmp_data = {'machine_id': self.machine_id,
                 "tag": self.tag,
                 "name": self.name,
-                "status":1,
+                "status": self.status,
                 "platform":self.platform,
                 "limit_process": self.limit_process,
                 "count_process": self.count_process}
+        # 获取cpu等负载信息
         machine_info = self.get_machine_info()
         for k, v in machine_info.items():
             tmp_data[k] = v
         data = self.post_url(url=url, json_data=tmp_data)
         if not data or 'data' not in data:
             return -1
+        operation = data['operation']
         data = data['data']
+        # 更新machine状态
         flag = 0
         # 更新 machine_id
         if self.machine_id == '':
@@ -200,19 +205,37 @@ class controller(object):
             self.all_config['machine_id'] = self.machine_id
             self.cookies['machine_id'] = self.machine_id
             flag = 1
-        # 更新 limit_count
-        if self.limit_process != data['limit_process']:
-            self.limit_process = data['limit_process']
-            self.all_config['limit_process'] = self.limit_process
-            flag = 1
-        # 更新 tag
-        if self.tag != data['tag']:
-            self.tag = data['tag']
-            self.all_config['tag'] = self.tag
-            flag = 1
+        if operation.get('status') == 1 and 'machine_info' in operation:
+            # 更新 limit_count
+            if self.limit_process != operation['machine_info'].get('limit_process', self.limit_process):
+                self.limit_process = int(str(operation['machine_info']['limit_process']))
+                self.all_config['limit_process'] = self.limit_process
+                flag = 1
+            # 更新 tag
+            if self.tag != operation['machine_info'].get('tag', self.tag):
+                self.tag = operation['machine_info']['tag'].strip().replace("，", ",")
+                self.all_config['tag'] = self.tag
+                self.cookies['tag'] = self.tag
+                flag = 1
+            # 更新name
+            if self.name != operation['machine_info'].get('name', self.name):
+                self.name = operation['machine_info']['name']
+                self.all_config['name'] = self.name
+                flag = 1
+            # 删除 pause
+            if os.path.exists("Pause"):
+                os.remove("Pause")
         # 更新config 信息
         if flag == 1:
             self.update_config()
+        # 暂停工作
+        if operation.get('status') == 0:
+            with open('./Pause', 'w') as w:
+                w.write(' ')
+        # 退出工作
+        if operation.get('status') == -1:
+            with open('./End', 'w') as w:
+                w.write(' ')
         return 1
 
     # 3. 获取服务器的运行状态
@@ -274,22 +297,35 @@ class controller(object):
     # 这是运行的主程序
     def work(self):
         self.append_machine()
+
         while True:
+            job_data = {}
             self.get_result()
             self.append_machine()
+            # 停止工作
             if self.exit_work():
+                # 删除 pause
+                if os.path.exists("Pause"):
+                    os.remove("Pause")
+                self.status = -1
+                self.append_machine()
                 exit()
+            # 暂停工作
             if self.pause_work():
-                time.sleep(30)
+                self.status = 0
+                self.append_machine()
                 continue
+            else:
+                self.status = 1
             if self.count_process < self.limit_process:
                 logging.info("总体任务 %s，完成任务 %s，运行任务 %s" % (self.count_all_job,
                     self.count_done_job, self.count_process))
-                self.get_job()
-                time.sleep(0.1)
-            else:
-                # 任务满载
+                job_data = self.get_job()
+            # 在没有找到job的情况下 或者满载的情况下
+            if not job_data:
                 time.sleep(30)
+            else:
+                time.sleep(0.1)
 
     # 退出work
     def exit_work(self):
