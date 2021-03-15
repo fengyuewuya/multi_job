@@ -53,6 +53,7 @@ logging.config.dictConfig(log_config)
 app = Flask(__name__)
 cache = Cache(app, config={'CACHE_TYPE': 'simple'}, with_jinja2_ext=False)
 app.config['UPLOAD_FOLDER'] = "./static/upload/"
+app.config['STATIC_URL_PATH'] = ""
 
 # 0.3 设定api docs相关信息
 app.config['JOBS_FOLDER'] = "./static/jobs/"
@@ -256,7 +257,7 @@ def hello_world():
  # 首页
 @app.route('/home')
 def home():
-    return send_file("index.html")
+    return send_file("static/index.html")
 
 # 获取所有的jobs
 @app.route('/get_all_job')
