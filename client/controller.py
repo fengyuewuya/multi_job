@@ -6,7 +6,7 @@ import gc
 abs_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(abs_path)
 import time
-from multiprocess import Process, Queue
+from multiprocessing import Process, Queue
 import zipfile
 import json
 import requests

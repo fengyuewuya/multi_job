@@ -11,7 +11,7 @@ import zipfile
 import io
 import os
 import time
-from multiprocess import Process, Queue
+from multiprocessing import Process, Queue
 import logging, logging.handlers, logging.config
 import uuid
 import decimal
@@ -214,8 +214,9 @@ def operate_return_data(data):
     import requests
     import time
     import json
-    file_path = 'jobs/' + data['job_type'] + '/'
-    os.chdir(file_path)
+    #file_path = 'jobs/' + data['job_type'] + '/'
+    job_path = os.path.join("static", "jobs", str(data['job_type']))
+    os.chdir(job_path)
     sys.path.append('./')
     result = data
     try:
@@ -308,9 +309,11 @@ def insert_job():
     status = 0
     new_job = Jobs(job_type, input_data, limit_count, status=status, tag=tag, batch=batch, priority=priority)
     db.session.add(new_job)
+    db.session.flush()
+    job_id = new_job.id
     db.session.commit()
     logging.info("insert a job of %s" % job_type)
-    return jsonify(code=200, status=1, message='ok', data=new_job.to_json())
+    return jsonify(code=200, status=1, message='ok', data={"job_id":job_id})
 
 # 检测任务文件的状态 如果状态比较旧就返回 1
 @app.route('/check_job_file_status')
@@ -369,8 +372,8 @@ def get_job_file():
     if 'job_type' not in request.args:
         return jsonify(code=203, message='error')
     job_type = request.args.get('job_type')
-    job_file = os.path.join(base_dir, 'jobs', job_type + '.zip')
-    job_file_name = job_type + '.zip'
+    job_file = os.path.join(base_dir, "static", "jobs", job_type + ".zip")
+    job_file_name = job_type + ".zip"
     return send_file(job_file, as_attachment=True,
                      attachment_filename=job_file_name,
                      mimetype='application/zip')
@@ -835,5 +838,18 @@ def get_all_job_type():
         data[line['job_type']] = line
     return jsonify(code=200, data=data)
 
+    # 解压zip文件
+    def unzip_file(self, job_type):
+        file_name = 'jobs/' + job_type + '.zip'
+        file_path = 'jobs/' + job_type
+        if zipfile.is_zipfile(file_name):
+            fz = zipfile.ZipFile(file_name, 'r')
+            for tmp_file in fz.namelist():
+                tmp_file_0 = os.path.join(file_path, tmp_file)
+                if os.path.exists(tmp_file_0):
+                    os.remove(tmp_file_0)
+                fz.extract(tmp_file, file_path)
+        else:
+            logging.error("This is not zip")
 if __name__ == '__main__':
     main()
