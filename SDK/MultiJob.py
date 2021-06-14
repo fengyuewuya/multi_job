@@ -69,7 +69,7 @@ class MultiJob(object):
 
     # 插入一个任务
     def insert_job(self, job_type, input_data, batch="", tag=""):
-        url = "insert_job"
+        url = "jobs/insert_job"
         result = self.__post_url(url, job_type=job_type, input_data=input_data, batch=batch, tag=tag)
         if "code" not in result:
             return -1
@@ -82,7 +82,7 @@ class MultiJob(object):
     def kill_job(self, job_id=None, job_type=None, machine_id=None, batch=None):
         if not (job_id or job_type or machine_id or batch):
             return 0
-        url = "kill_job"
+        url = "jobs/kill_job"
         result = self.__post_url(url, job_id=job_id, job_type=job_type, machine_id=machine_id, batch=batch)
         if not result:
             return 0
@@ -93,7 +93,7 @@ class MultiJob(object):
     def delete_job(self, job_id=None, job_type=None, machine_id=None, batch=None):
         if not (job_id or job_type or machine_id or batch):
             return 0
-        url = "delete_job"
+        url = "jobs/delete_job"
         result = self.__post_url(url, job_id=job_id, job_type=job_type, machine_id=machine_id, batch=batch)
         if not result:
             return 0
@@ -104,7 +104,7 @@ class MultiJob(object):
     def rerun_job(self, job_id=None, job_type=None, machine_id=None, batch=None):
         if not (job_id or job_type or machine_id or batch):
             return 0
-        url = "rerun_job"
+        url = "jobs/rerun_job"
         result = self.__post_url(url, job_id=job_id, job_type=job_type, machine_id=machine_id, batch=batch)
         if not result:
             return 0
@@ -116,7 +116,7 @@ class MultiJob(object):
     def copy_job(self, job_id=None, job_type=None, machine_id=None, batch=None):
         if not (job_id or job_type or machine_id or batch):
             return 0
-        url = "copy_job"
+        url = "jobs/copy_job"
         result = self.__post_url(url, job_id=job_id, job_type=job_type, machine_id=machine_id, batch=batch)
         if not result:
             return 0
@@ -125,7 +125,7 @@ class MultiJob(object):
 
     # 获取任务信息
     def get_job_detail(self, job_id):
-        url = "get_job_details"
+        url = "jobs/get_job_details"
         result = self.__get_url(url, job_id=job_id)
         return result
 
@@ -137,7 +137,7 @@ class MultiJob(object):
             return 0
         if limit < 0:
             return 0
-        url = "get_job_list"
+        url = "jobs/get_job_list"
         result = self.__get_url(url, job_type=job_type, batch=batch, offset=offset, limit=limit, machine_id=machine_id, status=status)
         return result
 
@@ -146,7 +146,7 @@ class MultiJob(object):
     # 如果同时存在 batch 和 job_type 则以两个维度进行聚合分析
     # 如果 只有job_type batch=None 则对 job_type batch的多种情况进行分析
     def get_job_summary(self, job_type=None, batch=None):
-        url = "get_job_summary"
+        url = "jobs/get_job_summary"
         result = self.__get_url(url, job_type=job_type, batch=batch)
         return result
 
@@ -158,13 +158,13 @@ class MultiJob(object):
             res = self.__upload_job_file(zip_file_name, job_type)
             os.remove(zip_file_name)
             print(res.json())
-        url = "update_job_file_status"
+        url = "job_file/update_job_file_status"
         result = self.__get_url(url, job_type=job_type)
         return result
 
     # 获取当前的所有任务类型
     def get_all_job_type(self):
-        url = "get_all_job_type"
+        url = "jobs/get_all_job_type"
         result = self.__get_url(url)
         return result
 
@@ -173,7 +173,7 @@ class MultiJob(object):
         #logging.info("获取的程序文件 %s" % job_type)
         os.makedirs(self.job_dir, exist_ok=True)
         file_name = os.path.join(self.job_dir, job_type + '.zip')
-        url = "get_job_file"
+        url = "job_file/get_job_file"
         url = urljoin(self.base_url, url)
         # 尝试下载5次文件，不成功的话 开启任务也会报错 输出报错日志
         for i in range(5):
@@ -198,14 +198,14 @@ class MultiJob(object):
         version = json.loads(open(os.path.join(job_path, '.info')).read()).get('version', -1)
         #check_job_file_url = self.base_url + 'check_job_file_status?job_type=' + job_type
         #check_job_file_url = check_job_file_url + '&version=' + str(version)
-        url = 'check_job_file_status'
-        result = self.__get_url(url='check_job_file_status', job_type=job_type, version=str(version))
-        if not result or 'status' not in result:
-                print("访问失败，等待下载更新!" % job_type)
+        url = 'job_file/check_job_file_status'
+        result = self.__get_url(url=url, job_type=job_type, version=str(version))
+        if not result or 'data' not in result:
+                print("访问失败， %s 等待下载更新!" % job_type)
                 #logging.error('check_job_file failed')
                 return 0
         # status 为 1文件需要更新， -2 文件不存在 ，0 文件不需要更新
-        if result['status'] == 0:
+        if result['data']['status'] == 0:
             print("%s 版本为最新，无需下载更新!" % job_type)
             return 1
         print("%s 版本过低，等待下载更新!" % job_type)
@@ -267,7 +267,7 @@ class MultiJob(object):
 
     # 上传任务文件 zip 格式
     def __upload_job_file(self, zip_path, job_type):
-        url = urljoin(self.base_url, "upload_file")
+        url = urljoin(self.base_url, "job_file/upload_file")
         files={'file': open(zip_path, 'rb')}
         res = requests.post(url=url, files=files, data={"job_type":job_type})
         return res

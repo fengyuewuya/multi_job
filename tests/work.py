@@ -39,8 +39,9 @@ class MultiJobTest(unittest.TestCase):
     def test_update_job_file_status(self):
         result = self.client.update_job_file_status(job_type="test_job", job_path="jobs/test_job/")
         self.assertTrue("code" in result)
-        self.assertTrue("version" in result)
-        print("添加一个任务类型 test_job 成功, 当前任务版本为 %s !" % result['version'])
+        self.assertTrue("data" in result)
+        self.assertTrue("version" in result["data"])
+        print("添加一个任务类型 test_job 成功, 当前任务版本为 %s !" % result['data']['version'])
 
     # 添加一个任务
     def test_insert_job(self):
@@ -68,7 +69,7 @@ class MultiJobTest(unittest.TestCase):
 
     # 查看任务 summary 结果成功
     def test_get_job_summary(self):
-        result = self.client.get_job_summary()
+        result = self.client.get_job_summary(job_type="test_job", batch=-1)
         self.assertTrue("code" in result)
         self.assertTrue("data" in result)
         self.assertTrue(len(result['data']) >= 0)
@@ -110,14 +111,15 @@ if __name__ == "__main__":
     suite = unittest.TestSuite()
     # 增加测试用例
     suite.addTest(MultiJobTest("test_get_all_job_type"))
-    #suite.addTest(MultiJobTest("test_update_job_file_status"))
+    suite.addTest(MultiJobTest("test_update_job_file_status"))
     suite.addTest(MultiJobTest("test_insert_job"))
     suite.addTest(MultiJobTest("test_get_job_detail"))
     suite.addTest(MultiJobTest("test_get_job_list"))
     suite.addTest(MultiJobTest("test_get_job_summary"))
     suite.addTest(MultiJobTest("test_load_job_file_from_server"))
     suite.addTest(MultiJobTest("test_load_job_file_from_local"))
-
+    """
+    """
     # 开始跑测试用例
     runner = unittest.TextTestRunner(verbosity=2)
     runner.run(suite)
