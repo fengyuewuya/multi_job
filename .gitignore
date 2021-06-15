@@ -5,6 +5,7 @@ server/data.db
 */tmp
 test/*
 __pycache__
+*/migrations/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
