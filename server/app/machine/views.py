@@ -7,7 +7,9 @@ from app.models import Machine
 from app.env import MACHINE_OK
 import app.machine.proc as proc
 from . import router
-from app.env import JOB_WAITING, MACHINE_DENY, MACHINE_UPDATE_STATUS_NO
+from flask import Flask, request, jsonify, json, send_file, g
+from app.env import JOB_WAITING, MACHINE_DENY, MACHINE_OK, MACHINE_UPDATE_STATUS_NO, MACHINE_PAUSE_YES, MACHINE_EXIT_YES
+from copy import deepcopy
 
 # 注册或者更新 machine 信息
 @router.route('/append_machine', methods=["POST"])
@@ -29,18 +31,21 @@ def append_machine():
     tmp_machine.memory_free = data.get('memory_free', -1)
     tmp_machine.disk_free = data.get('disk_free', -1)
     tmp_machine.disk_used = data.get('disk_used', -1)
-    tmp_machine.platform = data.get('platform', '')
     tmp_machine.count_process = data['count_process']
+    tmp_machine.platform = data.get('platform', '')
+    tmp_machine.status = data.get('status', MACHINE_OK)
     # 检测是否需要更新 配置信息, 函数返回1 就是需要下发云端参数， 0不需要下发, 则更新本地参数
     if not Machine.check_machine_update_status(machine_id=machine_id):
         tmp_machine.name = data['name']
         tmp_machine.tag = data['tag']
-        limit_process = data['limit_process']
+        tmp_machine.limit_process = data['limit_process']
+    data = deepcopy(tmp_machine.to_json())
     tmp_machine.update_status = MACHINE_UPDATE_STATUS_NO
+    # 将操作项目 设置为空
     # merge 如果存在就更新数据 ，不存在的话就插入新的数据
-    db.session.add(tmp_machine)
+    db.session.merge(tmp_machine)
     db.session.commit()
-    return jsonify(code=200, data=tmp_machine.to_json())
+    return jsonify(code=200, data=data)
 
 # 增加machine信息
 @router.route('/get_machine_info', )
@@ -60,10 +65,15 @@ def update_machine_info():
     name = data.get("name")
     tag = data.get("tag")
     limit_process = data.get("limit_process")
+    update_status = data.get("update_status")
     if not machine_id:
         return jsonify(code=301, message="", data={})
-    if not (name or tag or limit_process):
+    if not (name or tag or limit_process or update_status):
         return jsonify(code=301, message="", data={})
-    tmp_result = Machine.update_machine_info(machine_id, name=name, tag=tag, limit_process=limit_process)
+    tmp_result = Machine.update_machine_info(machine_id,
+            name=name,
+            tag=tag,
+            limit_process=limit_process,
+            update_status=update_status)
     result['result'] = tmp_result
     return jsonify(code=200, data=result)

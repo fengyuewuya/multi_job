@@ -58,9 +58,9 @@ def get_job():
     tag = request.cookies.get('tag', '')
     machine_id = request.cookies.get('machine_id')
     if not machine_id:
-        return jsonify(code=301, status=0, message='No Machine', data='')
+        return jsonify(code=301, message='No Machine', data=result)
     # 获取任务
-    jobs = proc.get_job(job_type=job_type, tag=tag)
+    jobs = proc.get_job(job_type=job_type, tag=tag, machine_id=machine_id)
     # 获取需要进行的操作
     operation_id = proc.get_job_operation(machine_id=machine_id)
     result = {}

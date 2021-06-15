@@ -1,6 +1,6 @@
 #coding=utf-8
 from app import db
-from app.env import MACHINE_OK, JOB_WAITING, MACHINE_UPDATE_STATUS_YES, MACHINE_UPDATE_STATUS_NO
+from app.env import MACHINE_OK, JOB_WAITING, MACHINE_UPDATE_STATUS_NO, MACHINE_UPDATE_STATUS_YES, MACHINE_PAUSE_YES, MACHINE_EXIT_YES, MACHINE_RERUN_YES
 import os
 import sys
 import datetime
@@ -48,13 +48,15 @@ class Jobs(db.Model):
         return '<job_id %r>' % self.id
 
     def to_json(self):
+        result = {}
         dic_0 = self.__dict__
-        if "_sa_instance_state" in dic_0:
-            del dic_0["_sa_instance_state"]
         for k, v in dic_0.items():
+            if k == "_sa_instance_state":
+                continue
+            result[k] = v
             if isinstance(v, datetime.datetime):
-                dic_0[k] = v.strftime("%Y-%m-%d %H:%M:%S")
-        return dic_0
+                result[k] = v.strftime("%Y-%m-%d %H:%M:%S")
+        return result
 
     @classmethod
     def get_by_job_id(cls, job_id):
@@ -81,13 +83,15 @@ class JobFile(db.Model):
         return '<job_type %r>' % self.job_type
 
     def to_json(self):
+        result = {}
         dic_0 = self.__dict__
-        if "_sa_instance_state" in dic_0:
-            del dic_0["_sa_instance_state"]
         for k, v in dic_0.items():
+            if k == "_sa_instance_state":
+                continue
+            result[k] = v
             if isinstance(v, datetime.datetime):
-                dic_0[k] = v.strftime("%Y-%m-%d %H:%M:%S")
-        return dic_0
+                result[k] = v.strftime("%Y-%m-%d %H:%M:%S")
+        return result
 
     @classmethod
     def get_by_job_type(cls, job_type):
@@ -143,19 +147,22 @@ class Machine(db.Model):
         self.disk_free = disk_free
         self.disk_used = disk_used
         self.platform = platform
+        self.status = status
     """
 
     def __repr__(self):
         return '<machine_id %r>' % self.machine_id
 
     def to_json(self):
+        result = {}
         dic_0 = self.__dict__
-        if "_sa_instance_state" in dic_0:
-            del dic_0["_sa_instance_state"]
         for k, v in dic_0.items():
+            if k == "_sa_instance_state":
+                continue
+            result[k] = v
             if isinstance(v, datetime.datetime):
-                dic_0[k] = v.strftime("%Y-%m-%d %H:%M:%S")
-        return dic_0
+                result[k] = v.strftime("%Y-%m-%d %H:%M:%S")
+        return result
 
     @classmethod
     def get_by_machine_id(cls, machine_id):
@@ -167,29 +174,34 @@ class Machine(db.Model):
 
     # 更新 machine 的 特定信息
     @classmethod
-    def updata_machine_info(cls, machine_id, name=None, tag=None, limit_process=None):
-        flag = MACHINE_UPDATE_STATUS_NO
+    def updata_machine_info(cls, machine_id, name=None, tag=None, limit_process=None, update_status=MACHINE_UPDATE_STATUS_NO):
         if not machine_id:
             return 0
         machine_id = str(machine_id)
         tmp_machine = Machine.query.filter_by(machine_id=machine_id).first()
         if not tmp_machine:
             return 0
-        if name:
-            tmp_machine.name = name
-            flag = MACHINE_UPDATE_STATUS_YES
-        if tag:
-            tmp_machine.tag = tag
-            flag = MACHINE_UPDATE_STATUS_YES
-        if limit_process:
-            tmp_machine.limit_process = limit_process
-            flag = MACHINE_UPDATE_STATUS_YES
-        if flag == MACHINE_UPDATE_STATUS_YES:
-            db.session.add(tmp_machine)
-            db.commit()
-            return 1
-        else:
-            return 0
+        # 更新 参数
+        if update_status == MACHINE_UPDATE_STATUS_YES:
+            tmp_machine.update_status = MACHINE_UPDATE_STATUS_YES
+            if name:
+                tmp_machine.name = name
+            if tag:
+                tmp_machine.tag = tag
+            if limit_process:
+                tmp_machine.limit_process = limit_process
+        # 暂停机器
+        if update_status == MACHINE_PAUSE_YES:
+            tmp_machine.update_status = MACHINE_PAUSE_YES
+        # 机器退出
+        if update_status == MACHINE_EXIT_YES:
+            tmp_machine.update_status = MACHINE_EXIT_YES
+        # 机器 从暂停到接着跑 rerun
+        if update_status == MACHINE_RERUN_YES:
+            tmp_machine.update_status = MACHINE_RERUN_YES
+        db.session.add(tmp_machine)
+        db.commit()
+        return 1
 
     # 检测 machine 是否需要更新, 1 需要更新，0 不需要更新
     @classmethod
@@ -198,6 +210,8 @@ class Machine(db.Model):
             return 0
         machine_id = str(machine_id)
         tmp_machine = Machine.query.filter_by(machine_id=machine_id).first()
+        if not tmp_machine:
+            return 0
         if tmp_machine.update_status == MACHINE_UPDATE_STATUS_YES:
             return 1
         else:

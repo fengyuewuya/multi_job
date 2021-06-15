@@ -79,7 +79,7 @@ class MultiJobTest(unittest.TestCase):
     def test_load_job_file_from_server(self):
         result = self.client.load_job_file(job_type="test_job")
         self.assertTrue(result == 1)
-        self.client.main({"input_data": {"seed":1}})
+        self.client.main({"seed":1})
         print("加载云端 test_job 任务到本地跑，成功!")
 
     # 加载本地任务文件
@@ -87,7 +87,7 @@ class MultiJobTest(unittest.TestCase):
         job_path = "jobs/test_job"
         result = self.client.load_job_file(job_path=job_path)
         self.assertTrue(result == 1)
-        self.client.main({"input_data": {"seed":1}})
+        self.client.main({"seed":1})
         print("加载本地任务文件跑，成功!")
 
     @unittest.skip("do't run as not ready")
@@ -116,9 +116,9 @@ if __name__ == "__main__":
     suite.addTest(MultiJobTest("test_get_job_detail"))
     suite.addTest(MultiJobTest("test_get_job_list"))
     suite.addTest(MultiJobTest("test_get_job_summary"))
+    """
     suite.addTest(MultiJobTest("test_load_job_file_from_server"))
     suite.addTest(MultiJobTest("test_load_job_file_from_local"))
-    """
     """
     # 开始跑测试用例
     runner = unittest.TextTestRunner(verbosity=2)

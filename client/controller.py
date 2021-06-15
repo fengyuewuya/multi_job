@@ -19,17 +19,17 @@ def append_process(data, queue_0):
     import sys
     import importlib
     import time
-    file_path = 'jobs/' + data['job_type'] + '/'
+    file_path = os.path.join('jobs', data['job_type'])
     os.chdir(file_path)
     sys.path.append('./')
     result = {}
     begin_time = time.time()
     try:
         main = importlib.import_module('main')  # 绝对导入
-        tmp_result = main.work(data)
-        result['count'] = tmp_result['count']
+        tmp_result = main.work(data["input_data"])
         result['result'] = tmp_result['result']
-        result['return_data'] = tmp_result['return_data']
+        result['count'] = tmp_result.get('count', 1)
+        result['return_data'] = tmp_result.get('return_data', "")
         result['status'] = 2
     except Exception as e:
         result = {'result': str(e), 'count': 0}
@@ -99,17 +99,24 @@ class controller(object):
         self.tag = all_config['tag']
         self.base_url = all_config['host'].strip('/') + ":%s" % all_config['port'] + '/'
         self.limit_process = all_config['limit_process']
+        self.JOBS_DIR = "./jobs"
+        self.LOG_DIR = "./log"
+        os.makedirs(self.JOBS_DIR, exist_ok=True)
+        os.makedirs(self.LOG_DIR, exist_ok=True)
 
     # 获取一个job, 并获取需要进行处理的任务
     def get_job(self):
-        data_all = self.get_url(url='get_job', timeout=3)
+        flag = 0
+        data_all = self.get_url(url='jobs/get_job', timeout=3)
         if not data_all or 'data' not in data_all:
             logging.error(('获取任务失败'))
-            return -1
-        data = data_all.get('data', {})
+            return flag
+        data_all = data_all['data']
+        jobs = data_all.get("jobs", [])
         operation_id = data_all.get('operation_id', [])
         # 对任务进行操作
         if operation_id:
+            flag = 1
             for tmp_id in operation_id:
                 if  tmp_id in self.job_process:
                     self.job_process[tmp_id].kill()
@@ -119,14 +126,17 @@ class controller(object):
                 tmp_data = {"id":tmp_id, "status":-1}
                 self.upload_data(tmp_data)
         # 开启新的任务
-        if data:
-            logging.info("开启了 %s 的任务" % data['job_type'])
-            if self.check_job_file(job_type=data['job_type']) == 0:
-                self.get_job_file(job_type=data['job_type'])
-                self.unzip_file(job_type=data['job_type'])
-                logging.info("获取了一个任务 %s" % data['job_type'])
-            self.run(data)
-        return data
+        for tmp_job in jobs:
+            if not tmp_job:
+                continue
+            flag = 1
+            logging.info("开启了 %s 的任务" % tmp_job['job_type'])
+            if self.check_job_file(job_type=tmp_job['job_type']) == 0:
+                self.get_job_file(job_type=tmp_job['job_type'])
+                self.unzip_file(job_type=tmp_job['job_type'])
+                logging.info("获取了一个任务文件 %s" % tmp_job['job_type'])
+            self.run(tmp_job)
+        return flag
 
     # 检测job文件是否更新
     def check_job_file(self, job_type):
@@ -137,20 +147,20 @@ class controller(object):
         #check_job_file_url = self.base_url + 'check_job_file_status?job_type=' + job_type
         #check_job_file_url = check_job_file_url + '&version=' + str(version)
         params = {"job_type":job_type, "version":str(version)}
-        result = self.get_url(url='check_job_file_status', params=params)
-        if not result or 'status' not in result:
+        result = self.get_url(url='job_file/check_job_file_status', params=params)
+        if not result or 'data' not in result or 'status' not in result['data']:
                 logging.error('check_job_file failed')
                 return 0
-        # status 为 1文件需要更新， -2 文件不存在 ，0 文件不需要更新
-        if result['status'] == 0:
-            return 1
+        # result['data']['status'] 为 1 文件需要更新， -2 文件不存在 ，0 文件不需要更新
+        if result['data']['status'] == 0:
+            return version
         return 0
 
     # 获取job_file
     def get_job_file(self, job_type):
         logging.info("获取的程序文件 %s" % job_type)
         file_name = 'jobs/' + job_type + '.zip'
-        data_url = self.base_url + 'get_job_file?job_type=' + job_type
+        data_url = self.base_url + 'job_file/get_job_file?job_type=' + job_type
         # 尝试下载5次文件，不成功的话 开启任务也会报错 输出报错日志
         for i in range(5):
             try:
@@ -180,7 +190,7 @@ class controller(object):
         # 更新下参数信息
         self.get_config()
         # 注册服务器，并上传服务器的各种信息, 获取uuid
-        url = 'append_machine'
+        url = 'machine/append_machine'
         tmp_data = {'machine_id': self.machine_id,
                 "tag": self.tag,
                 "name": self.name,
@@ -192,19 +202,44 @@ class controller(object):
         machine_info = self.get_machine_info()
         for k, v in machine_info.items():
             tmp_data[k] = v
-        data = self.post_url(url=url, json_data=tmp_data)
-        if not data or 'data' not in data:
-            return -1
-        operation = data['operation']
-        data = data['data']
+        all_data = self.post_url(url=url, json_data=tmp_data)
+        if not all_data or 'data' not in all_data or 'data' not in all_data['data']:
+            return 0
+        data = all_data['data']['data']
         # 更新machine状态
         flag = 0
         # 更新 machine_id
         if self.machine_id == '':
+            flag = 1
             self.machine_id = data['machine_id']
             self.all_config['machine_id'] = self.machine_id
             self.cookies['machine_id'] = self.machine_id
+        if data['update_status'] == 1:
             flag = 1
+            self.tag = data['tag']
+            self.name = data['name']
+            self.limit_process = data['limit_process']
+            self.all_config['tag'] = self.tag
+            self.all_config['name'] = self.name
+            self.all_config['limit_process'] = self.limit_process
+        # 更新config 信息
+        if flag == 1:
+            self.update_config()
+        # 暂停工作
+        if data['update_status'] == 2:
+            with open('./Pause', 'w') as w:
+                w.write(' ')
+        # 退出工作
+        if data['update_status'] == 3:
+            with open('./End', 'w') as w:
+                w.write(' ')
+        # 重启工作
+        if data['update_status'] == 4:
+            if os.path.exists("./Pause"):
+                os.remove("./Pause")
+        return 1
+        """
+        # operation = data['operation']
         if operation.get('status') == 1 and 'machine_info' in operation:
             # 更新 limit_count
             if self.limit_process != operation['machine_info'].get('limit_process', self.limit_process):
@@ -225,18 +260,7 @@ class controller(object):
             # 删除 pause
             if os.path.exists("Pause"):
                 os.remove("Pause")
-        # 更新config 信息
-        if flag == 1:
-            self.update_config()
-        # 暂停工作
-        if operation.get('status') == 0:
-            with open('./Pause', 'w') as w:
-                w.write(' ')
-        # 退出工作
-        if operation.get('status') == -1:
-            with open('./End', 'w') as w:
-                w.write(' ')
-        return 1
+        """
 
     # 3. 获取服务器的运行状态
     def get_machine_info(self):
@@ -281,10 +305,10 @@ class controller(object):
 
     # 7. 上传结果
     def upload_data(self, data):
-        res = self.post_url(url='update_job', json_data=data)
+        res = self.post_url(url='jobs/update_job', json_data=data)
         if not res:
                 logging.error('上传数据失败 job_id %s' % data['id'])
-                return -1
+                return 0
         logging.info("上传数据成功 job_id %s " % data['id'])
         return data
 
@@ -297,7 +321,6 @@ class controller(object):
     # 这是运行的主程序
     def work(self):
         self.append_machine()
-
         while True:
             job_data = {}
             self.get_result()
@@ -307,12 +330,12 @@ class controller(object):
                 # 删除 pause
                 if os.path.exists("Pause"):
                     os.remove("Pause")
-                self.status = -1
+                self.status = 3
                 self.append_machine()
                 exit()
             # 暂停工作
             if self.pause_work():
-                self.status = 0
+                self.status = 2
                 self.append_machine()
                 continue
             else:
@@ -359,6 +382,7 @@ class controller(object):
         if sys.platform.startswith('linux') or sys.platform.startswith('free'):
             platform = 'linux'
         return platform
+
 if __name__ == '__main__':
     tmp = controller()
     #print(tmp.get_machine_info())

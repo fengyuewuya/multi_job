@@ -2,6 +2,8 @@ import json
 import time
 import sqlalchemy
 from copy import deepcopy
+from multiprocessing import Process, Queue
+from sqlalchemy import and_, or_, UniqueConstraint
 from app import db
 from app import logging
 from app.models import Jobs, JobFile
@@ -69,11 +71,12 @@ def insert_job(data):
 # 更新任务状态，并且对回传数据进行处理
 def update_job_status(data):
     job_id = data.get('id')
-    return_count = data.get('count', 0 if status < 0 else 1)
-    result = json.dumps(data.get('result', ''))
+    status = data.get('status')
     #result = str({'result':result})
     spend_time = data.get('spend_time', -1)
     return_data = data.get('return_data')
+    return_count = data.get('count', 0 if status < 0 else 1)
+    result = json.dumps(data.get('result', ''))
     tmp_job = Jobs.get_by_job_id(job_id=job_id)
     if not tmp_job:
         return 0
@@ -145,7 +148,7 @@ def get_all_job_type():
     return data
 
 # 根据 job_type tag 获取相关的任务
-def get_job(job_type, tag):
+def get_job(job_type, tag, machine_id):
     tag = tag.replace(" ", "")
     tag_list = tag.split(",")
     query_0 = Jobs.query
@@ -158,9 +161,12 @@ def get_job(job_type, tag):
     data = query_0.order_by(Jobs.priority.desc(), Jobs.create_time).first()
     if data:
         data = data.to_json()
+        tmp_job_type = data['job_type']
+        tmp_job_file = JobFile.get_by_job_type(job_type=tmp_job_type)
+        version = tmp_job_file.version
         data['input_data'] = utils.parse_data_to_json(data['input_data'])
         # 对该id的任务便更新状态为1
-        Jobs.query.filter_by(id=data['id']).update({'status':JOB_RUNNING, 'machine_id':machine_id})
+        Jobs.query.filter_by(id=data['id']).update({'status':JOB_RUNNING, 'machine_id':machine_id, "version":version})
         db.session.commit()
     else:
         data = {}
