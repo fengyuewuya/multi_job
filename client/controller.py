@@ -42,13 +42,13 @@ def append_process(data, queue_0):
     queue_0.put(result)
 
 # 0. 读取logger配置文件, 并配置logger
-log_config = json.load(open("./log_config.json"))
+log_config = json.load(open("./config/log_config.json"))
 logging.config.dictConfig(log_config)
 
 # 1. 配置 controller相关配置
 queue_0 = Queue(9999)
 class controller(object):
-    def __init__(self, config = "./config.json"):
+    def __init__(self, config = "./config/config.json"):
         logging.info("开始初始化")
         self.config = config
         self.cookies = {}
@@ -238,29 +238,6 @@ class controller(object):
             if os.path.exists("./Pause"):
                 os.remove("./Pause")
         return 1
-        """
-        # operation = data['operation']
-        if operation.get('status') == 1 and 'machine_info' in operation:
-            # 更新 limit_count
-            if self.limit_process != operation['machine_info'].get('limit_process', self.limit_process):
-                self.limit_process = int(str(operation['machine_info']['limit_process']))
-                self.all_config['limit_process'] = self.limit_process
-                flag = 1
-            # 更新 tag
-            if self.tag != operation['machine_info'].get('tag', self.tag):
-                self.tag = operation['machine_info']['tag'].strip().replace("，", ",")
-                self.all_config['tag'] = self.tag
-                self.cookies['tag'] = self.tag
-                flag = 1
-            # 更新name
-            if self.name != operation['machine_info'].get('name', self.name):
-                self.name = operation['machine_info']['name']
-                self.all_config['name'] = self.name
-                flag = 1
-            # 删除 pause
-            if os.path.exists("Pause"):
-                os.remove("Pause")
-        """
 
     # 3. 获取服务器的运行状态
     def get_machine_info(self):
