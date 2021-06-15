@@ -1,11 +1,11 @@
 #coding=utf-8
-import importlib
-import sys
-import zipfile
-import time
-import requests
-import json
 import os
+import sys
+import time
+import json
+import zipfile
+import requests
+import importlib
 from urllib.parse import urljoin
 
 class MultiJob(object):

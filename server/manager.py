@@ -13,10 +13,6 @@ migrate = Migrate(app, db, render_as_batch=True, compare_type=True)
 manager.add_command('db', MigrateCommand)
 manager.add_command('shell', Shell(make_context=make_shell_context))
 
-@manager.command
-def test():
-    print("test")
-
 if __name__ == "__main__":
     #host = all_config["host"]
     #port = all_config["port"]

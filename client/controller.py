@@ -1,24 +1,23 @@
 #coding=utf-8
-import sqlite3
 import os
-import sys
 import gc
+import sys
+import time
+import json
+import psutil
+import zipfile
+import sqlite3
+import requests
+from multiprocessing import Process, Queue
+import logging, logging.handlers, logging.config
 abs_path = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(abs_path)
-import time
-from multiprocessing import Process, Queue
-import zipfile
-import json
-import requests
-import logging
-import psutil
-import logging, logging.handlers, logging.config
 def append_process(data, queue_0):
     # 开启多进程任务
     import os
     import sys
-    import importlib
     import time
+    import importlib
     file_path = os.path.join('jobs', data['job_type'])
     os.chdir(file_path)
     sys.path.append('./')
