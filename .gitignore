@@ -1,10 +1,12 @@
 jobs/
+config/
+upload/
+tmp/
 */log/*
 */jobs/*
-server/static/upload/*
 client/config.json
 server/data.db
-*/tmp
+tmp
 test/*
 __pycache__
 */migrations/
