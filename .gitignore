@@ -1,5 +1,7 @@
+jobs/*
 */log/*
 */jobs/*
+server/static/upload/*
 client/config.json
 server/data.db
 */tmp
