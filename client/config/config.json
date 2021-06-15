@@ -1,0 +1,9 @@
+{
+  "host": "http://127.0.0.1/",
+  "port": "5006",
+  "limit_count": 99999999,
+  "limit_process": 80,
+  "machine_id": "",
+  "name": "my",
+  "tag": "test_job"
+}

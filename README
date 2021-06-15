@@ -11,7 +11,7 @@ Server 功能：
 Controller 功能：
 1. 获取任务
 2. 计算结果
-3. 控制cpu负载和memory
+3. 显示cpu负载和memory
 4. 加载方法
 5. 回传结果
 
