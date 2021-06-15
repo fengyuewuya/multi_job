@@ -1,6 +1,6 @@
 {
-    "db":"mysql+pymysql://root:xczg7798@localhost/multi_job?charset=utf8",
-    "host":"0.0.0.0",
+    "db":"sqlite:///./data.db",
+    "host":"127.0.0.1",
     "port":5006,
     "debug":true
 }
