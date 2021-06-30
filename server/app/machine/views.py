@@ -1,8 +1,8 @@
 #coding=utf-8
 import sys
 import os
-from app import db
-from app import app
+import time
+from app import app, db, cache
 from app.models import Machine
 from app.env import MACHINE_OK
 import app.machine.proc as proc
@@ -43,13 +43,13 @@ def append_machine():
     tmp_machine.update_status = MACHINE_UPDATE_STATUS_NO
     # 将操作项目 设置为空
     # merge 如果存在就更新数据 ，不存在的话就插入新的数据
-    db.session.merge(tmp_machine)
+    db.session.add(tmp_machine)
     db.session.commit()
     return jsonify(code=200, data=data)
 
 # 增加machine信息
 @router.route('/get_machine_info', )
-#@cache.cached(timeout=3)
+@cache.cached(timeout=3)
 def get_machine_info():
     data = proc.get_machine_info(limit_time=30, offline_time=5)
     return jsonify(code=200, data=data)

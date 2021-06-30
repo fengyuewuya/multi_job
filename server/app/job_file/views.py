@@ -2,10 +2,8 @@
 import sys
 import os
 import json
-from app import db
-from app import app
-from app import logging
-from app.env import JOBS_DIR, UPLOAD_DIR
+from app import app, db, cache
+from app.env import JOBS_DIR, UPLOAD_DIR, logging
 import app.job_file.proc as proc
 from app.models import JobFile
 from . import router
@@ -41,20 +39,8 @@ def update_job_file_status():
     data = {}
     version = 0
     job_type = request.args.get("job_type")
-    tmp_job_file = JobFile.get_by_job_type(job_type=job_type)
-    # 说明不存在该 job_type
-    # if not tmp_job_file:
-    #    return jsonify(code=301, message='Job type not found', data={})
-    if tmp_job_file:
-        tmp_job_file.version = tmp_job_file.version + 1
-        version = tmp_job_file.version
-    else:
-        job_path = os.path.join(JOBS_DIR, job_type)
-        tmp_job_file = JobFile(job_type, job_path)
-    db.session.add(tmp_job_file)
-    db.session.commit()
     # 更新下文件中的version 信息， 并重新压缩文件
-    proc.update_job_file_version(job_type=job_type, version=version)
+    result = proc.update_job_file_version(job_type=job_type)
     data["version"] = version
     return jsonify(code=200, message='ok', data=data)
 
@@ -96,8 +82,21 @@ def upload_file():
     if ".zip" in file_name:
         tmp_path = os.path.join(UPLOAD_DIR, file_name)
         dir_path = os.path.join(JOBS_DIR, job_type)
+        #dir_path = JOBS_DIR
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         tmp_file.save(tmp_path)
         utils.unzip_file(tmp_path, dir_path)
+    return jsonify(code=200, message="success", data=data)
+
+# 检测 jobs 的目录情况
+@router.route('/check_jobs_dir')
+def check_jobs_dir():
+    result = []
+    for tmp_dir in os.listdir(JOBS_DIR):
+        tmp_dir_0 = os.path.join(JOBS_DIR, tmp_dir)
+        if os.path.isdir(tmp_dir_0):
+            result.append(tmp_dir)
+    data = {}
+    data['job_type'] = result
     return jsonify(code=200, message="success", data=data)

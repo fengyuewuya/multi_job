@@ -4,6 +4,6 @@
   "limit_count": 99999999,
   "limit_process": 80,
   "machine_id": "",
-  "name": "my",
-  "tag": "test_job"
+  "name": "my_first_machine",
+  "tag": "test"
 }

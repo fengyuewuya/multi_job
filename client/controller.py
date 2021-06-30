@@ -25,10 +25,12 @@ def append_process(data, queue_0):
     begin_time = time.time()
     try:
         main = importlib.import_module('main')  # 绝对导入
-        tmp_result = main.work(data["input_data"])
+        args = data['input_data']['args']
+        kwargs = data['input_data']['kwargs']
+        tmp_result = main.work(*args, **kwargs)
         result['result'] = tmp_result['result']
         result['count'] = tmp_result.get('count', 1)
-        result['return_data'] = tmp_result.get('return_data', "")
+        result['return_data'] = tmp_result.get('return_data')
         result['status'] = 2
     except Exception as e:
         result = {'result': str(e), 'count': 0}
@@ -48,7 +50,6 @@ logging.config.dictConfig(log_config)
 queue_0 = Queue(9999)
 class controller(object):
     def __init__(self, config = "./config/config.json"):
-        logging.info("开始初始化")
         self.config = config
         self.cookies = {}
         self.platform = self.get_platform()
@@ -63,7 +64,8 @@ class controller(object):
         self.job_process = {}
         # 记录网络参数
         self.headers = {'Content-Type': 'application/json'}
-        self.cookies = {"machine_id":self.machine_id, "tag":self.tag}
+        self.cookies = {"machine_id": self.machine_id, "tag": self.tag}
+        logging.info("初始化成功!")
 
     def get_url(self, url, **kwargs):
         # 封装的requests, get, 防止请求失败 导致程序挂
@@ -95,7 +97,7 @@ class controller(object):
         self.all_config = all_config
         self.machine_id = all_config['machine_id']
         self.name = all_config['name']
-        self.tag = all_config['tag']
+        self.tag = all_config['tag'].strip().replace("，", ', ')
         self.base_url = all_config['host'].strip('/') + ":%s" % all_config['port'] + '/'
         self.limit_process = all_config['limit_process']
         self.JOBS_DIR = "./jobs"
@@ -129,11 +131,11 @@ class controller(object):
             if not tmp_job:
                 continue
             flag = 1
-            logging.info("开启了 %s 的任务" % tmp_job['job_type'])
+            logging.info("任务ID: %s, 任务类型: %s, 开启新任务" % (tmp_job['id'], tmp_job['job_type']))
             if self.check_job_file(job_type=tmp_job['job_type']) == 0:
                 self.get_job_file(job_type=tmp_job['job_type'])
                 self.unzip_file(job_type=tmp_job['job_type'])
-                logging.info("获取了一个任务文件 %s" % tmp_job['job_type'])
+                logging.info("获取了 %s 任务文件" % tmp_job['job_type'])
             self.run(tmp_job)
         return flag
 
@@ -143,10 +145,8 @@ class controller(object):
         if not os.path.exists("jobs/" + job_type):
             return 0
         version = json.loads(open("jobs/" + job_type + '/.info').read()).get('version', -1)
-        #check_job_file_url = self.base_url + 'check_job_file_status?job_type=' + job_type
-        #check_job_file_url = check_job_file_url + '&version=' + str(version)
         params = {"job_type":job_type, "version":str(version)}
-        result = self.get_url(url='job_file/check_job_file_status', params=params)
+        result = self.get_url(url='job_file/check_job_file_status', **params)
         if not result or 'data' not in result or 'status' not in result['data']:
                 logging.error('check_job_file failed')
                 return 0
@@ -157,7 +157,6 @@ class controller(object):
 
     # 获取job_file
     def get_job_file(self, job_type):
-        logging.info("获取的程序文件 %s" % job_type)
         file_name = 'jobs/' + job_type + '.zip'
         data_url = self.base_url + 'job_file/get_job_file?job_type=' + job_type
         # 尝试下载5次文件，不成功的话 开启任务也会报错 输出报错日志
@@ -202,9 +201,11 @@ class controller(object):
         for k, v in machine_info.items():
             tmp_data[k] = v
         all_data = self.post_url(url=url, json_data=tmp_data)
-        if not all_data or 'data' not in all_data or 'data' not in all_data['data']:
+        if not all_data or 'data' not in all_data or 'machine_id' not in all_data['data']:
             return 0
-        data = all_data['data']['data']
+        data = all_data['data']
+        # 注意 第一次启动的时候，不会传入 update_stata, 所以需要额外赋值
+        data['update_status'] = data.get('update_status', 0)
         # 更新machine状态
         flag = 0
         # 更新 machine_id
@@ -272,8 +273,9 @@ class controller(object):
                 self.job_process.pop(data['id'])
             # 如果状态是-1， 表明存在错误
             if data['status'] == -1:
-                logging.error(data)
+                logging.error("任务ID: %s, 任务运行失败，错误信息: %s" % (data['id'], data))
             if data:
+                logging.info("任务ID: %s, 任务运行成功" % data['id'])
                 # 上传数据
                 self.upload_data(data)
             gc.collect()
@@ -283,14 +285,14 @@ class controller(object):
     def upload_data(self, data):
         res = self.post_url(url='jobs/update_job', json_data=data)
         if not res:
-                logging.error('上传数据失败 job_id %s' % data['id'])
-                return 0
-        logging.info("上传数据成功 job_id %s " % data['id'])
+            logging.error('任务ID: %s, 上传任务数据失败' % data['id'])
+            return 0
+        logging.info("任务ID: %s, 上传任务数据成功" % data['id'])
         return data
 
     # 8. 更新config信息
     def update_config(self):
-        w = open('config.json', 'w')
+        w = open(self.config, 'w')
         w.write(json.dumps(self.all_config, indent=2, ensure_ascii=False))
         w.close()
 
@@ -338,8 +340,8 @@ class controller(object):
     # 暂停work
     def pause_work(self):
         if os.path.exists("Pause"):
-            logging.info("暂停 work 30秒")
-            time.sleep(30)
+            logging.info("暂停 60 秒, 不会获取 job")
+            time.sleep(60)
             return True
         else:
             return False
@@ -360,16 +362,7 @@ class controller(object):
         return platform
 
 if __name__ == '__main__':
-    tmp = controller()
-    #print(tmp.get_machine_info())
-    #print(tmp.test_post())
-    tmp.work()
-    '''
-    while True:
-        time.sleep(5)
-        data = tmp.get_job()
-        print(data)
-        if not data.get('id'):
-            continue
-        tmp.assign_job(data)
-    '''
+    # 初始化实例
+    client = controller()
+    # 开启进程实例
+    client.work()

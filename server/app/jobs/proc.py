@@ -4,10 +4,9 @@ import sqlalchemy
 from copy import deepcopy
 from multiprocessing import Process, Queue
 from sqlalchemy import and_, or_, UniqueConstraint
-from app import db
-from app import logging
+from app import app, db
 from app.models import Jobs, JobFile
-from app.env import JOB_WAITING, JOB_RUNNING, JOB_TO_KILL, JOBS_DIR, CWD_DIR
+from app.env import JOB_WAITING, JOB_RUNNING, JOB_TO_KILL, JOBS_DIR, CWD_DIR, logging
 import app.utils as utils
 # 对 return_data 进行处理
 def operate_return_data(data):
@@ -23,12 +22,12 @@ def operate_return_data(data):
     result = data
     try:
         main = importlib.import_module('return_main')  # 绝对导入
-        tmp_result = main.work(data)
+        tmp_result = main.work(data['return_data'])
         result['result'] = str(result['result']) + '\n' + str(tmp_result)
         result['status'] = 3
         logging.info("operate return data of %s, %s" % (data['job_type'], result['result']))
     except Exception as e:
-        result['result'] = str(result['result']) + '\n' + str(e)
+        result['result'] = str(result['result']) + '\n error:' + str(e)
         logging.exception("error in open return data , %s" % result['id'])
         result['status'] = -2
     # 继续更新任务状态
@@ -128,6 +127,7 @@ def get_distinct_select(limit_time=30):
     result['job_type'] = job_type
     result['batch'] = job_type
     result['machine_id'] = machine_id
+    result['status'] = ['-2', '-1', '0', '1', '2', '3']
     return result
 
 # 返回所有任务类型
@@ -144,6 +144,7 @@ def get_all_job_type():
         line['waiting_task'] = 0
         line['working_task'] = 0
         line['finished_task'] = 0
+        line['job_file'] = ''
         data[line['job_type']] = line
     return data
 
@@ -183,8 +184,9 @@ def get_job_operation(machine_id):
 # 重跑任务
 def rerun_job(job_id, job_type, batch, machine_id):
     # 参数中 需要至少存在1个
-    if not (machine_id and job_id and job_type and batch):
+    if not (machine_id or job_id or job_type or batch):
         return 0
+    tmp_query = Jobs.query
     if job_type:
         tmp_query = tmp_query.filter(Jobs.job_type==job_type)
     if batch:
@@ -202,8 +204,9 @@ def rerun_job(job_id, job_type, batch, machine_id):
 # 重跑任务
 def delete_job(job_id, job_type, batch, machine_id):
     # 参数中 需要至少存在1个
-    if not (machine_id and job_id and job_type and batch):
+    if not (machine_id or job_id or job_type or batch):
         return 0
+    tmp_query = Jobs.query
     if job_type:
         tmp_query = tmp_query.filter(Jobs.job_type==job_type)
     if batch:
@@ -221,8 +224,9 @@ def delete_job(job_id, job_type, batch, machine_id):
 # 强制关闭任务
 def kill_job(job_id, job_type, batch, machine_id):
     # 参数中 需要至少存在1个
-    if not (machine_id and job_id and job_type and batch):
+    if not (machine_id or job_id or job_type or batch):
         return 0
+    tmp_query = Jobs.query
     if job_type:
         tmp_query = tmp_query.filter(Jobs.job_type==job_type)
     if batch:
@@ -240,8 +244,9 @@ def kill_job(job_id, job_type, batch, machine_id):
 # 复制任务
 def copy_job(job_id, job_type, batch, machine_id):
     # 参数中 需要至少存在1个
-    if not (machine_id and job_id and job_type and batch):
+    if not (machine_id or job_id or job_type or batch):
         return 0
+    tmp_query = Jobs.query
     if job_type:
         tmp_query = tmp_query.filter(Jobs.job_type==job_type)
     if batch:
@@ -255,7 +260,14 @@ def copy_job(job_id, job_type, batch, machine_id):
     data = tmp_query.all()
     count = len(data)
     for line in data:
-        new_job = Jobs(line.job_type, line.input_data, line.limit_count, status=JOB_RUNNING, tag=line.tag, batch=line.batch, priority=line.priority)
+        new_job = Jobs()
+        new_job.job_type = line.job_type
+        new_job.input_data = line.input_data
+        new_job.limit_count = line.limit_count
+        new_job.status = JOB_RUNNING
+        new_job.tag = line.tag
+        new_job.batch = line.batch
+        new_job.priority = line.priority
         db.session.add(new_job)
     db.session.commit()
     return 1
@@ -277,6 +289,8 @@ def get_job_list(job_type, batch, machine_id, status, offset_num=0, limit_num=10
     data = query_0.order_by(Jobs.id.desc()).limit(limit_num).offset(offset_num).all()
     if data:
         data = utils.convert_rowproxy_to_dict(data)
+        for line in data:
+            line['spend_time'] = round(line['spend_time'], 4) if line['spend_time'] else 0
     else:
         data = []
     result = {}
@@ -301,6 +315,8 @@ def get_job_summary(job_type, batch):
     tmp = res.fetchall()
     #data = convert_rowproxy_to_dict(res.fetchall())
     result = utils.convert_rowproxy_to_dict(tmp)
+    for line in result:
+        line['spend_time'] = round(line['spend_time'], 4) if line['spend_time'] else 0
     return result
 
 # 获取历史时间段的任务运行信息
@@ -309,14 +325,18 @@ def get_history_job(limit_time=24):
     # 取最近 24 小时的数据
     time_0 = time.strftime("%Y-%m-%d %H:00:00", time.localtime(time.time() - limit_time * 3600))
     mysql_0 = "select group_concat(distinct a.job_type) as job_type, sum(a.return_count * (case when a.status = 3 then 1 else 0 end)) as count, count(1) as task_num, sum(a.spend_time) / sum(case when a.status = 3 then 1 else 0 end) as spend_time, sum(case when a.status = 0 then 1 else 0 end) as waiting_task, sum(case when a.status = 1 then 1 else 0 end) as working_task, sum(case when a.status = 3 then 1 else 0 end) as finished_task, sum(case when a.status = -1 then 1 else 0 end) as failed_task, min(a.create_time) "
-    mysql_0 += " as begin_time, DATE_FORMAT(max(a.update_time),'%Y-%m-%d %H:00:00') as update_time from jobs a where update_time > " + "'%s'" % time_0 + " group by DATE_FORMAT(`update_time`,'%Y-%m-%d %H:00:00')"
+    # 注意 sqlite3 和 mysql 的时间处理的语法有差异
+    if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
+        mysql_0 += " as begin_time, strftime('%Y-%m-%d %H:00:00', max(a.update_time)) as update_time from jobs a where update_time > " + "'%s'" % time_0 + " group by strftime('%Y-%m-%d %H:00:00', `update_time`)"
+    else:
+        mysql_0 += " as begin_time, DATE_FORMAT(max(a.update_time),'%Y-%m-%d %H:00:00') as update_time from jobs a where update_time > " + "'%s'" % time_0 + " group by DATE_FORMAT(`update_time`,'%Y-%m-%d %H:00:00')"
     res = db.session.execute(mysql_0)
     data = utils.convert_rowproxy_to_dict(res.fetchall())
     # 数据再处理
     series = []
     tmp_data = {}
-    for i in range(n):
-        time_1 = time.strftime("%Y-%m-%d %H:00:00", time.localtime(time.time() + (n - i) * 3600))
+    for i in range(limit_time):
+        time_1 = time.strftime("%Y-%m-%d %H:00:00", time.localtime(time.time() - (limit_time - i - 1) * 3600))
         tmp_data[time_1] = {'task_num':0, "count":0, "job_type":"", "failed_task":0, "waiting_task":0, "working_task":0, "finished_task":0 ,"update_time":time_1, "spend_time":0, "begin_time":time_1}
         series.append(time_1)
     for line in data:
@@ -328,6 +348,7 @@ def get_history_job(limit_time=24):
     key_list = ["task_num", "count", "job_type", "failed_task", "waiting_task", "working_task", "finished_task", "update_time", "spend_time", "begin_time"]
     summary_key_list = ["task_num", "count", "failed_task", "waiting_task", "working_task", "finished_task"]
     summary_data = dict.fromkeys(summary_key_list, 0)
+    # 对数据进行重新赋值处理
     for tmp_key in key_list:
         tmp_dic_0 = deepcopy(tmp_dic)
         tmp_dic_0["name"] = tmp_key

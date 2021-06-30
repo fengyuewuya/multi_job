@@ -9,7 +9,6 @@ from copy import deepcopy
 from werkzeug.utils import secure_filename
 from sqlalchemy import and_, or_, UniqueConstraint
 from multiprocessing import Process, Queue
-import logging, logging.handlers, logging.config
 import uuid
 import decimal
 import sqlalchemy
@@ -18,10 +17,9 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_docs import ApiDoc
 from flask_cache import Cache
 from app.env import BASE_DIR, JOBS_DIR, CWD_DIR, CONFIG_DIR, UPLOAD_DIR, LOG_CONFIG, APP_CONFIG
-# 0.1 读取logger 配置
-logging.config.dictConfig(LOG_CONFIG)
 
-# 0.2 初始化flask 设置数据库相关信息
+
+# 初始化flask 设置数据库相关信息
 app = Flask(__name__)
 # 设缓存
 cache = Cache(app, config={'CACHE_TYPE': 'simple'}, with_jinja2_ext=False)

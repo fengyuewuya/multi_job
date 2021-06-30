@@ -12,10 +12,16 @@ class MultiJob(object):
     def __init__(self, base_url="", username="", password=""):
         self.base_url = base_url
         self.username = ""
-        self.__password = ""
+        self.__password = password
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.job_dir = os.path.join(self.base_dir, "jobs")
         self.cwd_dir = os.getcwd()
+        self.main = None
+        self.return_main = None
+        self.limit_count = 1
+        self.priority = 0
+        self.batch = ""
+        self.tag = ""
         sys.path.append('./')
         pass
 
@@ -50,7 +56,6 @@ class MultiJob(object):
                 return res.json()
             except Exception as e:
                 print("get url %s error: %s" % (url, str(e)))
-                #logging.error("get url %s error: %s" % (url, str(e)))
         return {}
 
     # 封装的requests, post, 防止请求失败 导致程序挂
@@ -64,13 +69,40 @@ class MultiJob(object):
                 return res.json()
             except Exception as e:
                 print("post url %s error: %s" % (url, str(e)))
-                #logging.error("post url %s error: %s" % (url, str(e)))
         return {}
 
+    #  设定 任务类型
+    def set_batch(self, batch):
+        self.batch = batch
+        return 1
+
+    #  设定 任务类型
+    def set_tag(self, tag):
+        self.tag = tag
+        return 1
+
+    #  设定 优先级 0-9999 越大优先级越高
+    def set_priority(self, priority=0):
+        self.priority = priority
+        return 1
+
+    #  设定 重试次数
+    def set_limit_count(self, limit_count=1):
+        self.limit_count = limit_count
+        return 1
+
+    #  设定 任务类型
+    def set_tag(self, tag):
+        self.tag = tag
+        return 1
+
     # 插入一个任务
-    def insert_job(self, job_type, input_data, batch="", tag=""):
+    def insert_job(self, job_type, *args, **kwargs ):
+        input_data = {}
+        input_data['args'] = args
+        input_data['kwargs'] = kwargs
         url = "jobs/insert_job"
-        result = self.__post_url(url, job_type=job_type, input_data=input_data, batch=batch, tag=tag)
+        result = self.__post_url(url, job_type=job_type, input_data=input_data, batch=self.batch, tag=self.tag, limit_count=self.limit_count, priority=self.priority)
         if "code" not in result:
             return -1
         if result:
@@ -157,7 +189,6 @@ class MultiJob(object):
             zip_file_name = self.zip_file(path=job_path)
             res = self.__upload_job_file(zip_file_name, job_type)
             os.remove(zip_file_name)
-            print(res.json())
         url = "job_file/update_job_file_status"
         result = self.__get_url(url, job_type=job_type)
         return result
@@ -170,7 +201,6 @@ class MultiJob(object):
 
     # 获取job_file
     def get_job_file(self, job_type):
-        #logging.info("获取的程序文件 %s" % job_type)
         os.makedirs(self.job_dir, exist_ok=True)
         file_name = os.path.join(self.job_dir, job_type + '.zip')
         url = "job_file/get_job_file"
@@ -183,8 +213,7 @@ class MultiJob(object):
                     code.write(res.content)
                 return 1
             except Exception as e:
-                #logging.error("下载任务文件失败 %s" % str(e))
-                print(e)
+                print("下载任务文件失败 %s" % str(e))
         return 0
 
     # 检测job文件是否更新
@@ -202,7 +231,6 @@ class MultiJob(object):
         result = self.__get_url(url=url, job_type=job_type, version=str(version))
         if not result or 'data' not in result:
                 print("访问失败， %s 等待下载更新!" % job_type)
-                #logging.error('check_job_file failed')
                 return 0
         # status 为 1文件需要更新， -2 文件不存在 ，0 文件不需要更新
         if result['data']['status'] == 0:
@@ -217,6 +245,7 @@ class MultiJob(object):
             return 0
         if not (job_type or job_path):
             return 0
+        self.__clear_load_job()
         if job_path:
             job_path = os.path.abspath(job_path)
         if job_type:
@@ -226,9 +255,15 @@ class MultiJob(object):
                 self.unzip_file(job_type=job_type)
             job_path = os.path.join(self.job_dir, job_type)
         os.chdir(job_path)
+        # 加载 main 的任务文件
         main = importlib.import_module('main')
         self.main = main.work
+        # 加载 return_main 的任务文件
+        if os.path.exists("return_main"):
+            return_main = importlib.import_module('return_main')
+            self.return_main = return_main.work
         os.chdir(self.cwd_dir)
+        return 1
         """
         main = importlib.import_module('main')  # 绝对导入
         self.job_type = job_type
@@ -236,7 +271,6 @@ class MultiJob(object):
         self.return_main = return_main.work
         tmp_result = main.work(data)
         """
-        return 1
 
     # 解压zip文件
     def unzip_file(self, job_type):
@@ -252,8 +286,7 @@ class MultiJob(object):
                 fz.extract(tmp_file, job_path)
             os.remove(file_name)
         else:
-            pass
-            #logging.error("This is not zip")
+            print("该文件不是ZIP文件")
 
     def zip_file(self, path):
         job_path = os.path.abspath(path)
@@ -272,7 +305,10 @@ class MultiJob(object):
         res = requests.post(url=url, files=files, data={"job_type":job_type})
         return res
 
-
+    # 清理 load_job后的 main 和 return_main, 及其他参数
+    def __clear_load_job(self):
+        self.main = None
+        self.return_main = None
 """
 # 注册任务类型
 requests.get("http://127.0.0.1:5006/update_job_file_status", params={"job_type":"test_job"})

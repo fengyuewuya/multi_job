@@ -3,6 +3,7 @@ from app import db
 from app.env import MACHINE_OK, JOB_WAITING, MACHINE_UPDATE_STATUS_NO, MACHINE_UPDATE_STATUS_YES, MACHINE_PAUSE_YES, MACHINE_EXIT_YES, MACHINE_RERUN_YES
 import os
 import sys
+import time
 import datetime
 from sqlalchemy import and_, or_, UniqueConstraint, func
 
@@ -174,7 +175,7 @@ class Machine(db.Model):
 
     # 更新 machine 的 特定信息
     @classmethod
-    def updata_machine_info(cls, machine_id, name=None, tag=None, limit_process=None, update_status=MACHINE_UPDATE_STATUS_NO):
+    def update_machine_info(cls, machine_id, name=None, tag=None, limit_process=None, update_status=MACHINE_UPDATE_STATUS_NO):
         if not machine_id:
             return 0
         machine_id = str(machine_id)
@@ -187,6 +188,7 @@ class Machine(db.Model):
             if name:
                 tmp_machine.name = name
             if tag:
+                tag = str(tag).strip().replace("，", ", ")
                 tmp_machine.tag = tag
             if limit_process:
                 tmp_machine.limit_process = limit_process
@@ -200,7 +202,7 @@ class Machine(db.Model):
         if update_status == MACHINE_RERUN_YES:
             tmp_machine.update_status = MACHINE_RERUN_YES
         db.session.add(tmp_machine)
-        db.commit()
+        db.session.commit()
         return 1
 
     # 检测 machine 是否需要更新, 1 需要更新，0 不需要更新

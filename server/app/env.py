@@ -5,6 +5,7 @@
 import os
 import sys
 import json
+import logging, logging.handlers, logging.config
 
 # 设定相关的路径地址
 # 获取 BASE_DIR 也就是 server 所在的目录，所以需要做两次的 dirname
@@ -30,6 +31,8 @@ LOG_CONFIG_PATH = os.path.join(CONFIG_DIR, "log_config.json")
 APP_CONFIG = json.load(open(APP_CONFIG_PATH))
 # 读取LOG的配置
 LOG_CONFIG = json.load(open(LOG_CONFIG_PATH))
+# 配置logger
+logging.config.dictConfig(LOG_CONFIG)
 
 # JOB的相关状态
 # 0:排队
@@ -64,7 +67,7 @@ MACHINE_UPDATE_STATUS_NO = 0
 MACHINE_UPDATE_STATUS_YES = 1
 # 2 表示 机器需要暂停
 MACHINE_PAUSE_YES = 2
-# 3 表示 机器需要删除
+# 3 表示 机器需要停止
 MACHINE_EXIT_YES = 3
 # 4 表示 机器从暂停 到 RERUN
 MACHINE_RERUN_YES = 4

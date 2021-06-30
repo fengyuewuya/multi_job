@@ -2,8 +2,8 @@
 import sys
 import os
 import json
-from app import db
-from app import logging
+import time
+from app import db, cache
 import app.jobs.proc as proc
 import app.utils as utils
 from app.models import Jobs, JobFile
@@ -14,21 +14,6 @@ from app.env import JOB_WAITING, MACHINE_OK, MACHINE_DENY
 # 插入一条jobs
 @router.route('/insert_job', methods=['POST'])
 def insert_job():
-    """Del some data
-
-    @@@
-    #### args
-
-    | args | nullable | type | remark |
-    |--------|--------|--------|--------|
-    |    title    |    false    |    string   |    blog title    |
-    |    name    |    true    |    string   |    person's name    |
-
-    #### return
-    - ##### json
-    > {"msg": "success", "code": 200}
-    @@@
-    """
     data = json.loads(request.data)
     job_type = data.get('job_type')
     if not JobFile.get_by_job_type(job_type=job_type):
@@ -162,15 +147,12 @@ def get_job_statistics():
 
 # 获取job的summary
 @router.route('/get_job_summary')
-#@cache.cached(timeout=3)
+@cache.cached(timeout=3)
 def get_job_summary():
     # 从任务的类型 、 batch等维度统计任务计算情况
     job_type = request.args.get('job_type')
     batch = request.args.get('batch')
     result = {}
-    # job_type 必须有
-    if not job_type:
-        return jsonify(code=301, data=result)
     result = proc.get_job_summary(job_type, batch)
     return jsonify(code=200, data=result)
 
@@ -189,8 +171,7 @@ def get_job_details():
 
 # 获取可筛选的信息
 @router.route('/get_distinct_select')
-#@cache.cached(timeout=30)
-#@cache.cached(timeout=100, key_prefix='get_list')
+@cache.cached(timeout=30)
 def get_distinct_select():
     result = proc.get_distinct_select(limit_time=30)
     result['time'] = time.time()
