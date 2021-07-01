@@ -61,7 +61,18 @@ def hello_world():
  # 首页
 @app.route('/home')
 def home():
-    return send_file("static/index.html")
+    return send_file("index.html")
+
+ # 首页
+@app.route('/readme')
+def readme():
+    return send_file("static/README.md")
+
+ # 首页
+@app.route('/favicon.ico')
+def get_favicon():
+    return send_file("static/favicon.ico")
+
 if __name__ == "__main__":
     host = all_config["host"]
     port = all_config["port"]

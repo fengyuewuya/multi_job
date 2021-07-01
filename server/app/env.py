@@ -12,14 +12,14 @@ import logging, logging.handlers, logging.config
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DIR = os.path.dirname(BASE_DIR)
 # jobs 离线文件所在目录
-JOBS_DIR = os.path.join(BASE_DIR, "static", "jobs")
+JOBS_DIR = os.path.join(BASE_DIR, "jobs")
 os.makedirs(JOBS_DIR, exist_ok=True)
 # config 所在目录
 CONFIG_DIR = os.path.join(BASE_DIR, "config")
 # 进程启动的地址
 CWD_DIR = os.getcwd()
 # 上传文件 所在的地址
-UPLOAD_DIR = os.path.join(BASE_DIR, "static", "upload")
+UPLOAD_DIR = os.path.join(BASE_DIR, "app", "upload")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 # app 配置文件 的地址
 APP_CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")

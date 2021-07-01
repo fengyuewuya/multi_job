@@ -55,34 +55,6 @@ def convert_rowproxy_to_dict(data):
         return_data.append(tmp_dict)
     return return_data
 
-# 对 return_data 进行处理
-def operate_return_data(data):
-    import os
-    import sys
-    import importlib
-    import requests
-    import time
-    import json
-    #file_path = 'jobs/' + data['job_type'] + '/'
-    job_path = os.path.join(JOBS_DIR, str(data['job_type']))
-    os.chdir(job_path)
-    sys.path.append('./')
-    result = data
-    try:
-        main = importlib.import_module('return_main')  # 绝对导入
-        tmp_result = main.work(data)
-        result['result'] = str(result['result']) + '\n' + str(tmp_result)
-        result['status'] = 3
-        logging.info("operate return data of %s, %s" % (data['job_type'], result['result']))
-    except Exception as e:
-        result['result'] = str(result['result']) + '\n' + str(e)
-        logging.exception("error in open return data , %s" % result['id'])
-        result['status'] = -2
-    url = 'http://localhost:%s/' % port + 'update_job'
-    headers = {'Content-Type': 'application/json'}
-    result['return_data'] = ''
-    res = requests.post(url=url, headers=headers, data=json.dumps(result))
-
 # 将附件打包成zip 注意地址要取绝对路径
 def zip_job_file(job_type):
     job_path = os.path.join(JOBS_DIR, job_type)
