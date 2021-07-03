@@ -2,6 +2,7 @@
 import sys
 import os
 import time
+import uuid
 from app import app, db, cache
 from app.models import Machine
 from app.env import MACHINE_OK
