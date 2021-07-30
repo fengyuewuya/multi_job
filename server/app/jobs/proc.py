@@ -264,7 +264,7 @@ def get_job_list(job_type, batch, machine_id, status, offset_num=0, limit_num=10
         query_0 = query_0.filter_by(machine_id=machine_id)
     if status:
         query_0 = query_0.filter_by(status=status)
-    if clear in [0, 1]:
+    if clear:
         query_0 = query_0.filter_by(clear=clear)
     # 计算数据量
     count = db.session.query(sqlalchemy.func.count(1)).select_from(query_0.subquery()).one()[0]
