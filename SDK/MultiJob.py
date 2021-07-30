@@ -176,7 +176,7 @@ class MultiJob(object):
         if limit < 0:
             return 0
         url = "jobs/get_job_list"
-        result = self.__get_url(url, job_type=job_type, batch=batch, offset=offset, limit=limit, machine_id=machine_id, status=status)
+        result = self.__get_url(url, job_type=job_type, batch=batch, offset=offset, limit=limit, machine_id=machine_id, status=status, clear=clear)
         return result
 
     # 获取任务列表信息
