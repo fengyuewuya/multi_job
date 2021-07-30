@@ -161,8 +161,14 @@ class MultiJob(object):
         result = self.__get_url(url, job_id=job_id)
         return result
 
+    # 清理 任务的 result , 减少储存压力
+    def clear_job(self, job_id):
+        url = "jobs/clear_job"
+        result = self.__post_url(url, job_id=job_id)
+        return result
+
     # 获取任务列表信息
-    def get_job_list(self, job_type=None, batch=None, offset=0, limit=10, machine_id=None, status=None):
+    def get_job_list(self, job_type=None, batch=None, offset=0, limit=10, machine_id=None, status=None, clear=None):
         if not (job_type or batch or machine_id or status):
             return 0
         if offset < 0:

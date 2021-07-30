@@ -36,11 +36,17 @@ ApiDoc(app)
 
 # 0.2.1 设置数据库相关参数
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False                          # 是否显示mysql配置
-app.config['SQLALCHEMY_DATABASE_URI'] = APP_CONFIG['db']                      # 数据库的连接配置
+app.config['SQLALCHEMY_DATABASE_URI'] = APP_CONFIG['db']
 if 'mysql' in APP_CONFIG['db']:
-    app.config['SQLALCHEMY_POOL_SIZE'] = APP_CONFIG.get('SQLALCHEMY_POOL_SIZE', 100)  # 数据库连接的数量
-    app.config['SQLALCHEMY_MAX_OVERFLOW'] = APP_CONFIG.get('SQLALCHEMY_MAX_OVERFLOW', -1) # 配置数据库超负载的链接数 -1表示不限制。如果是int的话，可能会触发爆内存bug
-app.config['JSON_AS_ASCII'] = False                                           # 让返回的json结果显示中文
+    # 数据库连接的数量
+    app.config['SQLALCHEMY_POOL_SIZE'] = APP_CONFIG.get('SQLALCHEMY_POOL_SIZE', 100)
+    # 配置数据库超负载的链接数 -1 表示不限制。如果是int的话，可能会触发爆内存bug
+    app.config['SQLALCHEMY_MAX_OVERFLOW'] = APP_CONFIG.get('SQLALCHEMY_MAX_OVERFLOW', -1)
+# 数据库的连接配置
+#app.config['SQLALCHEMY_POOL_TIMEOUT'] = 10
+app.config['SQLALCHEMY_POOL_RECYCLE'] = 1500
+# 让返回的 json 结果显示中文
+app.config['JSON_AS_ASCII'] = False
 db = SQLAlchemy(app)
 from app.jobs import router as jobs_router
 from app.job_file import router as job_file_router

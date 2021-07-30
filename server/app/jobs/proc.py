@@ -8,32 +8,6 @@ from app import app, db
 from app.models import Jobs, JobFile
 from app.env import JOB_WAITING, JOB_RUNNING, JOB_TO_KILL, JOBS_DIR, CWD_DIR, logging
 import app.utils as utils
-# 对 return_data 进行处理
-def operate_return_data(data):
-    import os
-    import sys
-    import importlib
-    import requests
-    import time
-    import json
-    job_path = os.path.join(JOBS_DIR, str(data['job_type']))
-    os.chdir(job_path)
-    sys.path.append('./')
-    result = data
-    try:
-        main = importlib.import_module('return_main')  # 绝对导入
-        tmp_result = main.work(data['return_data'])
-        result['result'] = str(result['result']) + '\n' + str(tmp_result)
-        result['status'] = 3
-        logging.info("operate return data of %s, %s" % (data['job_type'], result['result']))
-    except Exception as e:
-        result['result'] = str(result['result']) + '\n error:' + str(e)
-        logging.exception("error in open return data , %s" % result['id'])
-        result['status'] = -2
-    # 继续更新任务状态
-    os.chdir(CWD_DIR)
-    update_job_status(result)
-
 # 插入任务
 def insert_job(data):
     # 插入一条新的任务
@@ -76,14 +50,16 @@ def update_job_status(data):
     return_data = data.get('return_data')
     return_count = data.get('count', 0 if status < 0 else 1)
     result = json.dumps(data.get('result', ''))
+    error = json.dumps(data.get("error", ""))
     tmp_job = Jobs.get_by_job_id(job_id=job_id)
     if not tmp_job:
         return 0
-    # 进行回调操作
+    # 判断是否进行回调操作
     if status == 2:
         # return_data为None的话，则不需要回传
         if return_data == None:
             status = 3
+    """
         else:
             try:
                 return_data = json.loads(return_data)
@@ -93,18 +69,22 @@ def update_job_status(data):
             p = Process(target=operate_return_data, args=(data, ))
             p.dameon = False
             p.start()
+    """
     if status in [-1, -2]:
         logging.error(result)
     # 任务失败的话 如果limit_count > 0 说明有重跑的机会, 进行重跑
     # 没有重跑机会 就更新数据库相关结果
     if int(status) < 0 and tmp_job.limit_count > 0:
         tmp_job.status = 0
+        tmp_job.clear = 0
         tmp_job.limit_count -= 1
     else:
         tmp_job.status = status
         tmp_job.return_count = return_count
         tmp_job.result = result
         tmp_job.spend_time = spend_time
+        if int(status) < 0:
+            tmp_job.error = error
     db.session.add(tmp_job)
     db.session.commit()
     logging.info("update job status of %s" % (job_id))
@@ -264,7 +244,7 @@ def copy_job(job_id, job_type, batch, machine_id):
         new_job.job_type = line.job_type
         new_job.input_data = line.input_data
         new_job.limit_count = line.limit_count
-        new_job.status = JOB_RUNNING
+        new_job.status = JOB_WAITING
         new_job.tag = line.tag
         new_job.batch = line.batch
         new_job.priority = line.priority
@@ -273,7 +253,7 @@ def copy_job(job_id, job_type, batch, machine_id):
     return 1
 
 # 获取job的列表页信息
-def get_job_list(job_type, batch, machine_id, status, offset_num=0, limit_num=10):
+def get_job_list(job_type, batch, machine_id, status, offset_num=0, limit_num=10, clear=None):
     query_0 = Jobs.query
     # 如果存在特定的job_type，就筛选特定的job_type
     if job_type:
@@ -284,6 +264,8 @@ def get_job_list(job_type, batch, machine_id, status, offset_num=0, limit_num=10
         query_0 = query_0.filter_by(machine_id=machine_id)
     if status:
         query_0 = query_0.filter_by(status=status)
+    if clear in [0, 1]:
+        query_0 = query_0.filter_by(clear=clear)
     # 计算数据量
     count = db.session.query(sqlalchemy.func.count(1)).select_from(query_0.subquery()).one()[0]
     data = query_0.order_by(Jobs.id.desc()).limit(limit_num).offset(offset_num).all()
@@ -291,6 +273,7 @@ def get_job_list(job_type, batch, machine_id, status, offset_num=0, limit_num=10
         data = utils.convert_rowproxy_to_dict(data)
         for line in data:
             line['spend_time'] = round(line['spend_time'], 4) if line['spend_time'] else 0
+            line["result"] = ""
     else:
         data = []
     result = {}
@@ -364,3 +347,20 @@ def get_history_job(limit_time=24):
     result['title'] = key_list
     result['summary_data'] = summary_data
     return result
+
+# 清洗任务
+def clear_job(job_id):
+    # 参数中 需要至少存在1个
+    #if not (machine_id or job_id or job_type or batch):
+    #    return 0
+    if type(job_id) is not list:
+        job_id = [job_id]
+    tmp_query = Jobs.query
+    tmp_query = tmp_query.filter(Jobs.id.in_(job_id))
+    data = tmp_query.all()
+    for line in data:
+        line.result = ""
+        line.clear = 1
+        db.session.add(line)
+    db.session.commit()
+    return 1

@@ -1,6 +1,6 @@
 #coding=utf-8
 from app import db
-from app.env import MACHINE_OK, JOB_WAITING, MACHINE_UPDATE_STATUS_NO, MACHINE_UPDATE_STATUS_YES, MACHINE_PAUSE_YES, MACHINE_EXIT_YES, MACHINE_RERUN_YES
+from app.env import MACHINE_OK, JOB_WAITING, MACHINE_UPDATE_STATUS_NO, MACHINE_UPDATE_STATUS_YES, MACHINE_PAUSE_YES, MACHINE_EXIT_YES, MACHINE_RERUN_YES, APP_CONFIG
 import os
 import sys
 import time
@@ -17,13 +17,20 @@ class Jobs(db.Model):
     input_data = db.Column(db.Text)
     machine_id = db.Column(db.String(64), index=True)
     limit_count = db.Column(db.Integer, default=1)
-    tag = db.Column(db.Text)
+    tag = db.Column(db.Text, comment="任务的运行 标签, 表示哪些机器可以运行, 空的话, 则不限制机器运行类型")
     version = db.Column(db.Integer, default=-1)
     status = db.Column(db.Integer, default=JOB_WAITING)
     return_count = db.Column(db.Integer, default=0)
-    result = db.Column(db.Text, default='')
+    if 'mysql' in APP_CONFIG['db']:
+        from sqlalchemy.dialects.mysql import LONGTEXT
+        result = db.Column(LONGTEXT, default='')
+    else:
+        result = db.Column(db.Text, default='')
     spend_time = db.Column(db.Integer)
-    batch = db.Column(db.String(64), default=lambda: time.strftime("%Y-%m-%d", time.localtime()), index=True) # 生产批次
+    batch = db.Column(db.String(64), default=lambda: time.strftime("%Y-%m-%d", time.localtime()), index=True, comment="任务的批次") # 生产批次
+    error = db.Column(db.Text, default='', comment="任务出错的话, 实际的错误信息")
+    clear = db.Column(db.Integer, default=0, comment="回传的数据是否被清空了 1: 已经清空, 0: 未被清空")
+    spend_time = db.Column(db.Integer)
     update_time = db.Column(db.DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
     create_time = db.Column(db.DateTime, default=datetime.datetime.now)
     UniqueConstraint('job_type', 'batch', name='job_type_batch')

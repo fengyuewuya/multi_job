@@ -101,7 +101,7 @@ def kill_job():
     result['result'] = tmp_result
     return jsonify(status=200, data=result)
 
-# 复制任务
+# 复制重提任务
 @router.route('/copy_job', methods=['POST'])
 def copy_job():
     data = json.loads(request.data)
@@ -117,6 +117,18 @@ def copy_job():
     result['result'] = tmp_result
     return jsonify(status=200, data=result)
 
+# 清除任务的 result 信息, 防止占用过多空间
+@router.route('/clear_job', methods=['POST'])
+def clear_job():
+    data = json.loads(request.data)
+    result = {}
+    job_id = data.get('job_id')
+    if not job_id:
+        return jsonify(status=301, data=result)
+    tmp_result = proc.clear_job(job_id=job_id)
+    result['result'] = tmp_result
+    return jsonify(status=200, data=result)
+
 # 获取任务的列表信息
 @router.route('/get_job_list')
 def get_job_list():
@@ -126,8 +138,9 @@ def get_job_list():
     limit_num = request.args.get('limit', 10)
     machine_id = request.args.get('machine_id')
     status = request.args.get('status')
+    clear = request.args.get('clear')
     result = {}
-    result = proc.get_job_list(job_type=job_type, batch=batch, machine_id=machine_id, status=status, offset_num=offset_num, limit_num=limit_num)
+    result = proc.get_job_list(job_type=job_type, batch=batch, machine_id=machine_id, status=status, offset_num=offset_num, limit_num=limit_num, clear=clear)
     return jsonify(code=200, message='ok', data=result)
 
 # 获取job的完成统计情况
@@ -177,6 +190,7 @@ def get_distinct_select():
     result['time'] = time.time()
     return jsonify(code=200, data=result)
 
+# 获取历史任务
 @router.route('/get_history_job')
 def get_history_job():
     limit_time = request.args.get('limit_time', 24)
@@ -186,7 +200,11 @@ def get_history_job():
     result = proc.get_history_job(limit_time=limit_time)
     return jsonify(code=200, data=result)
 
+# 获取所有的任务类型
 @router.route('/get_all_job_type')
 def get_all_job_type():
     data = proc.get_all_job_type()
     return jsonify(code=200, data=data)
+
+# 获取需要二次处理的任务
+

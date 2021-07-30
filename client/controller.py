@@ -33,7 +33,7 @@ def append_process(data, queue_0):
         result['return_data'] = tmp_result.get('return_data')
         result['status'] = 2
     except Exception as e:
-        result = {'result': str(e), 'count': 0}
+        result = {'result': "", 'count': 0, "error": str(e)}
         result['status'] = -1
         result['return_data'] = ''
     end_time = time.time()
