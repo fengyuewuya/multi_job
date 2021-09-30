@@ -85,7 +85,7 @@ class controller(object):
         for i in range(5):
             time.sleep(i * i + 0.01)
             try:
-                res = requests.get(url, params=kwargs, cookies=self.cookies, timeout=3)
+                res = requests.get(url, params=kwargs, cookies=self.cookies, timeout=30)
                 return res.json()
             except Exception as e:
                 logging.error("get url %s error: %s" % (url, str(e)))
@@ -97,7 +97,7 @@ class controller(object):
         for i in range(5):
             time.sleep(i * i + 0.01)
             try:
-                res = requests.post(url, json=json_data, headers=self.headers, cookies=self.cookies, timeout=3)
+                res = requests.post(url, json=json_data, headers=self.headers, cookies=self.cookies, timeout=30)
                 return res.json()
             except Exception as e:
                 logging.error("post url %s error: %s" % (url, str(e)))
@@ -120,7 +120,7 @@ class controller(object):
     # 获取一个job, 并获取需要进行处理的任务
     def get_job(self):
         flag = 0
-        data_all = self.get_url(url='jobs/get_job', timeout=3)
+        data_all = self.get_url(url='jobs/get_job', timeout=30)
         if not data_all or 'data' not in data_all:
             logging.error(('获取任务失败'))
             return flag
