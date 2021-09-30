@@ -49,8 +49,8 @@ def update_job_status(data):
     spend_time = data.get('spend_time', -1)
     return_data = data.get('return_data')
     return_count = data.get('count', 0 if status < 0 else 1)
-    result = json.dumps(data.get('result', ''))
-    error = json.dumps(data.get("error", ""))
+    result = json.dumps(data.get('result', ''), indent=2, ensure_ascii=False)
+    error = json.dumps(data.get('error', ''), indent=2, ensure_ascii=False)
     tmp_job = Jobs.get_by_job_id(job_id=job_id)
     if not tmp_job:
         return 0

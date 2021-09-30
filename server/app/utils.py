@@ -37,7 +37,7 @@ def parse_data_to_json(data):
         return data
     except:
         pass
-    return 0
+    return data
 
 # 将fetchall 返回的list 转换为 json list
 def convert_rowproxy_to_dict(data):

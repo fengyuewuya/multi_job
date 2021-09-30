@@ -28,9 +28,21 @@ def append_process(data, queue_0):
         args = data['input_data']['args']
         kwargs = data['input_data']['kwargs']
         tmp_result = main.work(*args, **kwargs)
-        result['result'] = tmp_result['result']
+        result['result'] = tmp_result
+        # 计算 count
+        if hasattr(main, "count"):
+            result["count"] = main.count(tmp_result)
+        else:
+            result["count"] = 1
+        # 获取 return_data
+        if hasattr(main, "return_data"):
+            result["return_data"] = main.return_data(tmp_result)
+        else:
+            result["return_data"] = None
+        """
         result['count'] = tmp_result.get('count', 1)
         result['return_data'] = tmp_result.get('return_data')
+        """
         result['status'] = 2
     except Exception as e:
         result = {'result': "", 'count': 0, "error": str(e)}

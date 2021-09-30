@@ -180,6 +180,7 @@ def get_job_details():
     if not tmp_job:
         return jsonify(code=301, data=result)
     result = tmp_job.to_json()
+    result["result"] = utils.parse_data_to_json(result["result"])
     return jsonify(code=200, data=result)
 
 # 获取可筛选的信息
