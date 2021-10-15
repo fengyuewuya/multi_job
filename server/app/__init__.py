@@ -39,7 +39,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False                          # 
 app.config['SQLALCHEMY_DATABASE_URI'] = APP_CONFIG['db']
 if 'mysql' in APP_CONFIG['db']:
     # 数据库连接的数量
-    app.config['SQLALCHEMY_POOL_SIZE'] = APP_CONFIG.get('SQLALCHEMY_POOL_SIZE', 100)
+    app.config['SQLALCHEMY_POOL_SIZE'] = APP_CONFIG.get('SQLALCHEMY_POOL_SIZE', 10)
     # 配置数据库超负载的链接数 -1 表示不限制。如果是int的话，可能会触发爆内存bug
     app.config['SQLALCHEMY_MAX_OVERFLOW'] = APP_CONFIG.get('SQLALCHEMY_MAX_OVERFLOW', -1)
 # 数据库的连接配置

@@ -10,7 +10,7 @@ from sqlalchemy import and_, or_, UniqueConstraint, func
 # 初始化Jobs表的相关参数
 class Jobs(db.Model):
     __tablename__  = 'jobs'
-    __table_args__ = {"useexisting":True, 'mysql_charset':'utf8', 'mysql_engine': 'InnoDB'}
+    __table_args__ = {"use_existing":True, 'mysql_charset':'utf8', 'mysql_engine': 'InnoDB'}
     id = db.Column(db.Integer, primary_key=True)
     job_type = db.Column(db.String(64), index=True)
     priority = db.Column(db.Integer, default=0)
@@ -76,7 +76,7 @@ class Jobs(db.Model):
 # 初始化 Job_file 参数
 class JobFile(db.Model):
     __tablename__  = 'job_file'
-    __table_args__ = {"useexisting":True, 'mysql_charset':'utf8', 'mysql_engine': 'InnoDB'}
+    __table_args__ = {"use_existing":True, 'mysql_charset':'utf8', 'mysql_engine': 'InnoDB'}
     job_type = db.Column(db.String(32), primary_key=True)
     job_file = db.Column(db.String(128))
     version = db.Column(db.Integer, default=0)
@@ -120,7 +120,7 @@ class JobFile(db.Model):
 # 初始化 machine 表的参数
 class Machine(db.Model):
     __tablename__  = 'machine'
-    __table_args__ = {"useexisting":True, 'mysql_charset':'utf8', 'mysql_engine': 'InnoDB'}
+    __table_args__ = {"use_existing":True, 'mysql_charset':'utf8', 'mysql_engine': 'InnoDB'}
     machine_id = db.Column(db.String(128), primary_key=True)
     platform = db.Column(db.String(32))
     name = db.Column(db.Text)
