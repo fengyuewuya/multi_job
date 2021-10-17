@@ -114,6 +114,7 @@ class controller(object):
         self.limit_process = all_config['limit_process']
         self.JOBS_DIR = "./jobs"
         self.LOG_DIR = "./log"
+        self.cookies = {"machine_id": self.machine_id, "tag": self.tag}
         os.makedirs(self.JOBS_DIR, exist_ok=True)
         os.makedirs(self.LOG_DIR, exist_ok=True)
 
