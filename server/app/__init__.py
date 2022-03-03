@@ -51,9 +51,11 @@ db = SQLAlchemy(app)
 from app.jobs import router as jobs_router
 from app.job_file import router as job_file_router
 from app.machine import router as machine_router
+from app.ip import router as ip_router
 app.register_blueprint(jobs_router)
 app.register_blueprint(job_file_router)
 app.register_blueprint(machine_router)
+app.register_blueprint(ip_router)
 db.create_all()
 
 # 设定一些初级的api

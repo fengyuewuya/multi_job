@@ -225,3 +225,55 @@ class Machine(db.Model):
             return 1
         else:
             return 0
+
+# IP 表
+class IP(db.Model):
+    __tablename__  = 'ip'
+    __table_args__ = {"use_existing":True,
+            'mysql_charset':'utf8',
+            'mysql_engine': 'InnoDB'}
+    instance_id = db.Column(db.String(32), primary_key=True)
+    ip = db.Column(db.String(32))
+    port = db.Column(db.Integer, default=7798, comment="访问端口")
+    sep_time = db.Column(db.Integer, default=300, comment="间隔时间")
+    expire_time = db.Column(db.DateTime, comment="ip过期时间")
+    update_time = db.Column(db.DateTime,
+            default=datetime.datetime.now,
+            onupdate=datetime.datetime.now, comment="更新时间")
+    create_time = db.Column(db.DateTime,
+            default=datetime.datetime.now, comment="创建时间")
+
+    def to_json(self):
+        result = {}
+        dic_0 = self.__dict__
+        for k, v in dic_0.items():
+            if k == "_sa_instance_state":
+                continue
+            result[k] = v
+            if isinstance(v, datetime.datetime):
+                result[k] = v.strftime("%Y-%m-%d %H:%M:%S")
+        return result
+
+    @classmethod
+    def get_all_ips(cls, limit_time=300):
+        # 取出来过期时间在 limit_time 外秒的时间
+        limit_date = datetime.datetime.utcnow()
+        limit_date = limit_date + datetime.timedelta(seconds=limit_time)
+        all_ips = cls.query.filter(cls.expire_time > limit_date).all()
+        return all_ips
+
+    @classmethod
+    def update_ip(cls, instance_id, ip, port, sep_time):
+        tmp_ip = cls.query.filter(cls.instance_id==instance_id).first()
+        if not tmp_ip:
+            tmp_ip = cls()
+            tmp_ip.instance_id = instance_id
+        tmp_ip.ip = ip
+        tmp_ip.port = port
+        tmp_ip.sep_time = sep_time
+        expire_time = datetime.datetime.utcnow()
+        expire_time = expire_time + datetime.timedelta(seconds=sep_time)
+        tmp_ip.expire_time = expire_time
+        db.session.add(tmp_ip)
+        db.session.commit()
+        return 1
