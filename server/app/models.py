@@ -263,7 +263,7 @@ class IP(db.Model):
         return all_ips
 
     @classmethod
-    def update_ip(cls, instance_id, ip, port, sep_time):
+    def update_ip(cls, instance_id, ip, port, sep_time, expire_time=None):
         tmp_ip = cls.query.filter(cls.instance_id==instance_id).first()
         if not tmp_ip:
             tmp_ip = cls()
@@ -271,8 +271,9 @@ class IP(db.Model):
         tmp_ip.ip = ip
         tmp_ip.port = port
         tmp_ip.sep_time = sep_time
-        expire_time = datetime.datetime.utcnow()
-        expire_time = expire_time + datetime.timedelta(seconds=sep_time)
+        if expire_time == None:
+            expire_time = datetime.datetime.now()
+            expire_time = expire_time + datetime.timedelta(seconds=sep_time)
         tmp_ip.expire_time = expire_time
         db.session.add(tmp_ip)
         db.session.commit()

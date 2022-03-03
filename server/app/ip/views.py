@@ -8,7 +8,7 @@ from copy import deepcopy
 from app.models import IP
 from app import app, db, cache
 from flask import Flask, request, jsonify, json, send_file, g
-
+from app.env import APP_CONFIG
 # 插入或者更新ip
 @router.route('/insert_ip', methods=["POST"])
 def insert_ip():
@@ -17,7 +17,8 @@ def insert_ip():
     ip = data["ip"]
     port = data["port"]
     sep_time = data["sep_time"]
-    IP.update_ip(instance_id, ip, port, sep_time)
+    expire_time = data.get("expire_time")
+    IP.update_ip(instance_id, ip, port, sep_time, expire_time)
     data = {}
     data["result"] = 1
     return jsonify(code=200, data=data)
@@ -38,5 +39,14 @@ def get_ips():
         result.append(tmp_result)
     data = {}
     data["result"] = result
+    return jsonify(code=200, data=data)
+
+# 获取 白名单ip 信息
+@router.route('/get_whitelist', methods=["GET"])
+@cache.cached(timeout=5)
+def get_whitelist():
+    whitelist = APP_CONFIG["whitelist"]
+    data = {}
+    data["whitelist"] = whitelist
     return jsonify(code=200, data=data)
 
